@@ -90,7 +90,7 @@ const login = async ( req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const {email, password, pseudo} = req.body
-        const updateQuery = 'UPDATE "Users" SET email:$1, password:$2, pseudo:$3, avatar_url:$4 WHERE "id"=:id'
+        const updateQuery = 'UPDATE "Users" SET email:$1, password:$2, pseudo:$3, avatar_url:$4 WHERE "id"=user.id'
         const result = (updateQuery)
 
         
