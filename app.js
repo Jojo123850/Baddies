@@ -1,0 +1,44 @@
+const express = require('express')
+require('dotenv').config()
+const { connectDB, pool } = require('./config/db')
+const cors = require('cors')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
+
+const app = express()          
+const port = process.env.PORT || 3001
+
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+
+app.get('/', (req, res) => {
+    res.send('Bienvenue sur mon API RESTful !')
+})
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    message: { status: 429, error: 'Trop de requêtes, réessayer plus tard' }
+})
+
+app.use(
+    helmet({
+        contentSecurityPolicy: false,
+        crossOriginResourcePolicy: { policy: "cross-origin" }
+    })
+)
+
+const corsOptions = {
+    origin: ['https://storycom.fr', 'http://localhost:3001']
+}
+app.use(cors(corsOptions))
+
+app.use(limiter)
+
+async function start() {
+    await connectDB() // Vérifie la connexion au démarrage
+    app.listen(port, () => {
+        console.log(`Serveur lancé sur le port ${port}`)
+    })
+}
+start()
