@@ -8,6 +8,9 @@ const rateLimit = require('express-rate-limit')
 const app = express()          
 const port = process.env.PORT || 3001
 
+const authRoutes = require('./routes/authRoutes')
+const userRoutes = require('./routes/userRoutes')
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -34,6 +37,9 @@ const corsOptions = {
 app.use(cors(corsOptions))
 
 app.use(limiter)
+
+app.use('/api/v1/auth', authRoutes)
+app.use('/api/v1/user', userRoutes)
 
 async function start() {
     await connectDB() // Vérifie la connexion au démarrage
