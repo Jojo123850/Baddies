@@ -20,6 +20,13 @@ const register = async (req, res) => {
     return res.status(400).json({ error: 'Champs obligatoires manquants.' })
   }
 
+  const isPasswordOk = validator.isStrongPassword(password, {
+    minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
+  })
+  if (!isPasswordOk) {
+    return res.status(400).json({ error: 'Mot de passe trop faible.' })
+  }
+
   try {
     const userCheck = await pool.query(
       'SELECT "id" FROM "Users" WHERE email = $1 OR pseudo = $2',
@@ -27,23 +34,28 @@ const register = async (req, res) => {
     )
 
     if (userCheck.rows.length > 0) {
-      return res.status(409).json({ error: 'Email ou pseudo déjà utilisé.' })
+      return res.status(400).json({ error: 'Email ou pseudo déjà utilisé.' })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const insertQuery = `
       INSERT INTO "Users" (email, password, pseudo, avatar_url)
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1, $2, $3, $4) RETURNING id, email, password, pseudo,avatar_url
     `
 
     const values = [email, hashedPassword, pseudo, null]
 
     const newUser = await pool.query(insertQuery, values)
 
+    const user = newUser.rows[0]
+
+    const token =  generateToken (user.id)
+
     return res.status(201).json({
       message: 'Compte créé avec succès !',
-      user: newUser.rows[0]
+      token,
+      user
     })
 
   } catch (error) {
