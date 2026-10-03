@@ -119,48 +119,78 @@ const forgotPassword = async (req, res) => {
 }
 
 const resetPassword = async (req, res) => {
-    const {email, newPassword} = req.body
-    const {token2} = req.params.id
   try {
+    const { token, newPassword } = req.body
 
-    const decoded = jwt.verify(token2, JWT_SECRET)
-
-    const changeUser = await findByEmail(email)
-    if(!changeUser){
-      return res.status(404).json({message : 'user not found'})
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        message: 'Token et nouveau mot de passe obligatoires'
+      })
     }
 
-    if(token2 != changedUser.reset_token){
-            return res.status(401).json({ message: 'unvalid token' });
-        }
+    const isPasswordOk = validator.isStrongPassword(newPassword, {
+      minLength: 6,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1
+    })
 
-        if(decoded.id != changedUser.id){
-            return res.status(401).json({ message: 'unvalid token' });
-        }
+    if (!isPasswordOk) {
+      return res.status(400).json({
+        message: 'Mot de passe trop faible'
+      })
+    }
 
-        const isPasswordOk = validator.isStrongPassword(newPassword, {
-            minLength: 6,
-            minLowercase: 1,
-            minUppercase: 1,
-            minNumbers: 1,
-            minSymbols: 1,
-        })
+    // Récupérer les tokens encore valides
+    const resetTokens = await userModel.findValidResetTokens()
 
-        if(!isPasswordOk){
-            return res.status(400).json({message: "password not valid : 1 maj 1 min 1 number 1 special chars 6 total required"})
-        }
+    // Chercher quel token correspond au token reçu
+    let matchingToken = null
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+    for (const resetToken of resetTokens) {
+      const isMatch = await bcrypt.compare(
+        token,
+        resetToken.token_hash
+      )
 
+      if (isMatch) {
+        matchingToken = resetToken
+        break
+      }
+    }
 
-        await changePassword(hashedPassword, decoded.id)
+    if (!matchingToken) {
+      return res.status(401).json({
+        message: 'Token invalide ou expiré'
+      })
+    }
 
-        return res.status(200).json({ message: 'Password updated' });
+    // Hasher le nouveau mot de passe
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    // Modifier le mot de passe
+    await userModel.changePassword(
+      hashedPassword,
+      matchingToken.user_id
+    )
+
+    // Empêcher de réutiliser le token
+    await userModel.markTokenAsUsed(
+      matchingToken.id
+    )
+
+    return res.status(200).json({
+      message: 'Mot de passe modifié avec succès'
+    })
 
   } catch (error) {
-    
+    console.log('Erreur resetPassword :', error)
+
+    return res.status(500).json({
+      error: 'Erreur serveur'
+    })
   }
-  
 }
 const updateProfile = async (req, res) => {
   try {
