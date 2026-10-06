@@ -32,7 +32,7 @@ app.use(
 )
 
 const corsOptions = {
-    origin: ['https://storycom.fr', 'http://localhost:3001']
+    origin: [ 'http://localhost:3001', 'http://localhost:5173']
 }
 app.use(cors(corsOptions))
 

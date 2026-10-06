@@ -76,7 +76,7 @@ const changePassword = async (password, id) => {
 // Créer un token de réinitialisation
 const createToken = async (user_id, token_hash, expires_at) => {
   const result = await pool.query(
-    `INSERT INTO "Password_reset_token"
+    `INSERT INTO "password_reset_tokens"
       (user_id, token_hash, expires_at)
      VALUES ($1, $2, $3)
      RETURNING *`,
@@ -90,7 +90,7 @@ const createToken = async (user_id, token_hash, expires_at) => {
 const findValidResetTokens = async () => {
   const result = await pool.query(
     `SELECT *
-     FROM "Password_reset_token"
+     FROM "password_reset_tokens"
      WHERE used_at IS NULL
        AND expires_at > NOW()
      ORDER BY id DESC`
@@ -102,7 +102,7 @@ const findValidResetTokens = async () => {
 // Marquer un token comme utilisé
 const markTokenAsUsed = async (id) => {
   const result = await pool.query(
-    `UPDATE "Password_reset_token"
+    `UPDATE "password_reset_tokens"
      SET used_at = NOW()
      WHERE id = $1
      RETURNING *`,

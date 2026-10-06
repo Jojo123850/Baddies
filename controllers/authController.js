@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken')
 const validator = require('validator')
 const bcrypt = require('bcrypt')
 const userModel = require('../models/userModel')
+const mailSender = require('../utils/mailSender')
 
 const JWT_SECRET = process.env.JWT_SECRET
 const JWT_EXPIRES_IN = '364d'
@@ -19,7 +20,7 @@ const generateResetToken = () => {
 const register = async (req, res) => {
   const { email, password, pseudo } = req.body
 
-  if (!email || !password || !pseudo) {
+  if ( !pseudo ||!email || !password ) {
     return res.status(400).json({ error: 'Champs obligatoires manquants.' })
   }
 
@@ -95,7 +96,7 @@ const forgotPassword = async (req, res) => {
     const changeUser = await userModel.findByEmail(email)
 
     if (!changeUser) {
-      return res.status(200).json({ message: "si cet email existe,vous allez recevoir un email" })
+      return res.status(400).json({ message: "Email inexistant" })
     }
 
     // génération nouvel token grace à l'email
@@ -105,12 +106,12 @@ const forgotPassword = async (req, res) => {
 
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
-    await createToken (changeUser.id, tokenHash,expiresAt)
+    await userModel.createToken(changeUser.id, tokenHash,expiresAt)
 
-    await mailSender2(email, changeUser.pseudo,token2 )
+    await mailSender(email, changeUser.pseudo,token2 )
     
 
-    res.status(200).json({ message: "mail sent" })
+    res.status(200).json({ message: "Email sent" })
 
   } catch (error) {
     console.log(error)
