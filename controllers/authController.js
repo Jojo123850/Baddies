@@ -111,7 +111,7 @@ const forgotPassword = async (req, res) => {
     await mailSender(email, changeUser.pseudo,token2 )
     
 
-    res.status(200).json({ message: "Email sent" })
+    res.status(200).json({ message: "Email envoyé avec succès" })
 
   } catch (error) {
     console.log(error)
