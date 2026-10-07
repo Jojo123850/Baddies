@@ -10,6 +10,7 @@ const port = process.env.PORT || 3001
 
 const authRoutes = require('./routes/authRoutes')
 const userRoutes = require('./routes/userRoutes')
+const historyRoutes = require('./routes/historyRoutes')
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -40,6 +41,7 @@ app.use(limiter)
 
 app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/user', userRoutes)
+app.use('/api/v1/history', historyRoutes)
 
 async function start() {
     await connectDB() // Vérifie la connexion au démarrage
