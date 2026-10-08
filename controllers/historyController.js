@@ -1,6 +1,6 @@
 const historyModel = require('../models/historyModel')
 
-// Enregistrer un épisode
+// Enregistrer une évaluation terminée
 const createHistory = async (req, res) => {
     try {
         const {evaluation, solutions} = req.body
@@ -25,6 +25,7 @@ const createHistory = async (req, res) => {
 
 }
 
+
 const getHistory = async (req, res) => {
     try {
         const userId = req.user.id
@@ -41,6 +42,7 @@ const getHistory = async (req, res) => {
         
     }
 }
+
 
 const getHistoryById = async (req, res) => {
     try {
@@ -67,4 +69,6 @@ const getHistoryById = async (req, res) => {
         })
     }
 }
+
+
 module.exports = {createHistory, getHistory, getHistoryById}

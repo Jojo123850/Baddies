@@ -19,17 +19,17 @@ const generateResetToken = () => {
 
 const register = async (req, res) => {
   const { email, password, pseudo } = req.body
+// on les enlève parce qu'on a crée un schéma
+  // if ( !pseudo ||!email || !password ) {
+  //   return res.status(400).json({ error: 'Champs obligatoires manquants.' })
+  // }
 
-  if ( !pseudo ||!email || !password ) {
-    return res.status(400).json({ error: 'Champs obligatoires manquants.' })
-  }
-
-  const isPasswordOk = validator.isStrongPassword(password, {
-    minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
-  })
-  if (!isPasswordOk) {
-    return res.status(400).json({ error: 'Mot de passe trop faible.' })
-  }
+  // const isPasswordOk = validator.isStrongPassword(password, {
+  //   minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
+  // })
+  // if (!isPasswordOk) {
+  //   return res.status(400).json({ error: 'Mot de passe trop faible.' })
+  // }
 
   try {
     const existingUser = await userModel.findByEmailOrPseudo(email, pseudo)
@@ -56,9 +56,9 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Please provide email and password' })
-    }
+    // if (!email || !password) {
+    //   return res.status(400).json({ message: 'Please provide email and password' })
+    // }
 
     const user = await userModel.findByEmail(email)
     if (!user) {
@@ -84,7 +84,7 @@ const login = async (req, res) => {
 }
 
 
-// reset password
+// forgot password
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body
@@ -93,22 +93,22 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: "L'email est obligatoire" })
     }
 
-    const changeUser = await userModel.findByEmail(email)
+    const user = await userModel.findByEmail(email)
 
-    if (!changeUser) {
+    if (!user) {
       return res.status(400).json({ message: "Email inexistant" })
     }
 
     // génération nouvel token grace à l'email
-    const token2 = generateResetToken()
+    const token = generateResetToken()
 
-    const tokenHash = await bcrypt.hash(token2, 10)
+    const tokenHash = await bcrypt.hash(token, 10)
 
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
-    await userModel.createToken(changeUser.id, tokenHash,expiresAt)
+    await userModel.createToken(user.id, tokenHash,expiresAt)
 
-    await mailSender(email, changeUser.pseudo,token2 )
+    await mailSender(email, user.pseudo,token )
     
 
     res.status(200).json({ message: "Email envoyé avec succès" })
@@ -148,7 +148,7 @@ const resetPassword = async (req, res) => {
 
     // Chercher quel token correspond au token reçu
     let matchingToken = null
-
+    // prendre les tokens un par un  et comparer le token hashé avec le token reçu
     for (const resetToken of resetTokens) {
       const isMatch = await bcrypt.compare(
         token,
@@ -167,10 +167,9 @@ const resetPassword = async (req, res) => {
       })
     }
 
-    // Hasher le nouveau mot de passe
     const hashedPassword = await bcrypt.hash(newPassword, 10)
 
-    // Modifier le mot de passe
+   
     await userModel.changePassword(
       hashedPassword,
       matchingToken.user_id
@@ -193,28 +192,32 @@ const resetPassword = async (req, res) => {
     })
   }
 }
+
+
 const updateProfile = async (req, res) => {
   try {
     const user = req.user
     const { email, password, pseudo, avatar_url } = req.body
 
     if (email && !validator.isEmail(email)) {
-      return res.status(400).json({ message: 'You must provide a valid email' })
+      return res.status(400).json({ message: 'Vous devez utilisé un email valide' })
     }
 
     if (email) {
       const existingUser = await findByEmailExcludingId(email, user.id)
       if (existingUser) {
-        return res.status(400).json({ message: 'Email already in use' })
+        return res.status(400).json({ message: 'Email déjà utilisé' })
       }
     }
 
     let hashedPassword = null
+
     if (password) {
       const isPasswordOk = validator.isStrongPassword(password, {
         minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
       })
-      if (!isPasswordOk) {
+
+    if (!isPasswordOk) {
         return res.status(400).json({
           message: 'Password must have 1 lower, 1 upper, 1 number and 1 symbol and be at least 6 characters'
         })
