@@ -34,7 +34,10 @@ const register = async (req, res) => {
   try {
     const existingUser = await userModel.findByEmailOrPseudo(email, pseudo)
     if (existingUser) {
-      return res.status(400).json({ error: 'Email ou pseudo déjà utilisé.' })
+      return res.status(400).json({
+        title: "Vous ne pouvez pas  utilisé ce mail ou ce pseudo",
+        status: 400,
+        detail: 'Email ou pseudo déjà utilisé.' })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -62,12 +65,21 @@ const login = async (req, res) => {
 
     const user = await userModel.findByEmail(email)
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' })
+      return res.status(401).json({
+        title: "Mail non trouvé",
+        status: 401,
+        detail: 'Invalid credentials'
+         })
+      
     }
 
     const isMatch = await bcrypt.compare(password, user.password)
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' })
+      return res.status(401).json({
+        title: "Mot de passe pas conforme",
+        status: 401,
+        detail: 'Invalid credentials'
+       })
     }
 
     const token = generateToken(user.id)
