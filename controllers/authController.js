@@ -6,7 +6,7 @@ const mailSender = require('../utils/mailSender')
 
 const JWT_SECRET = process.env.JWT_SECRET
 // pour la sécurité
-const JWT_EXPIRES_IN = '1d'
+const JWT_EXPIRES_IN = '15m'
 
 const generateToken = (id) => {
   return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
@@ -18,6 +18,9 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
+const generateRefreshToken = () => {
+  return crypto.randomBytes(32).toString('hex')
+}
 const register = async (req, res) => {
   const { email, password, pseudo } = req.body
 // on les enlève parce qu'on a crée un schéma
@@ -56,45 +59,78 @@ const register = async (req, res) => {
   }
 }
 
+
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { email, password } = req.body;
 
-    // if (!email || !password) {
-    //   return res.status(400).json({ message: 'Please provide email and password' })
-    // }
+    // 1. Rechercher l'utilisateur
+    const user = await userModel.findByEmail(email);
+    if(!password){
+        return res.status(401).json({
+        message: ' mot de passe incorrect'
+      });
 
-    const user = await userModel.findByEmail(email)
+    }
+
+
     if (!user) {
       return res.status(401).json({
-        title: "Mail non trouvé",
-        status: 401,
-        detail: 'Invalid credentials'
-         })
-      
+        message: 'Email  incorrect'
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password)
+    // 2. Vérifier le mot de passe
+    const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
       return res.status(401).json({
-        title: "Mot de passe pas conforme",
-        status: 401,
-        detail: 'Invalid credentials'
-       })
+        message: 'Email ou mot de passe incorrect'
+      });
     }
 
-    const token = generateToken(user.id)
+    // 3. Générer le refresh token
+    const refreshToken = generateRefreshToken();
 
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      user: { id: user.id, email: user.email, pseudo: user.pseudo }
-    })
+    // 4. Hacher le refresh token pour la base de données
+    const tokenHash = await bcrypt.hash(refreshToken, 10);
+
+    // 5. Définir une expiration de 7 jours
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    );
+
+    // 6. Enregistrer le hash dans PostgreSQL
+    await userModel.createRefreshToken(
+      user.id,
+      tokenHash,
+      expiresAt
+    );
+
+    // 7. Générer l'access token
+    const accessToken = generateToken(user.id);
+
+    // 8. Renvoyer les tokens pour le test
+    return res.status(200).json({
+      message: 'Connexion réussie',
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        pseudo: user.pseudo
+      }
+    });
+
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ error: 'Erreur serveur.' })
+    console.error('Erreur login :', error);
+
+    return res.status(500).json({
+      message: 'Erreur serveur'
+    });
   }
-}
+};
+
 
 
 // forgot password
@@ -218,6 +254,61 @@ const resetPassword = async (req, res) => {
   }
 }
 
+const refreshTokens = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        message: 'Refresh token manquant'
+      });
+    }
+
+    // 1. Récupérer les refresh tokens valides en base
+    const tokens = await userModel.findValidRefreshTokens();
+
+    // 2. Chercher celui qui correspond au token reçu
+    let matchingToken = null;
+
+    for (const savedToken of tokens) {
+      const isMatch = await bcrypt.compare(
+        token,
+        savedToken.token_hash
+      );
+
+      if (isMatch) {
+        matchingToken = savedToken;
+        break;
+      }
+    }
+
+    // 3. Refuser si aucun token ne correspond
+    if (!matchingToken) {
+      return res.status(401).json({
+        message: 'Refresh token invalide ou expiré'
+      });
+    }
+
+    // 4. Générer un nouvel access token
+    const accessToken = jwt.sign(
+      { id: matchingToken.user_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    // 5. Renvoyer le nouvel access token
+    return res.status(200).json({
+      accessToken
+    });
+
+  } catch (error) {
+    console.error('Erreur refreshTokens :', error);
+
+    return res.status(500).json({
+      message: 'Erreur serveur'
+    });
+  }
+};
 
 const updateProfile = async (req, res) => {
   try {
@@ -268,4 +359,4 @@ const updateProfile = async (req, res) => {
   }
 }
 
-module.exports = { register, login, forgotPassword,resetPassword, updateProfile }
+module.exports = { register, login, forgotPassword,resetPassword,refreshTokens, updateProfile }

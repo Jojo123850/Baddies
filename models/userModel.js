@@ -76,7 +76,7 @@ const changeUser = async (pseudo, email, password, avatarUrl, id) => {
 // Créer un token de réinitialisation
 const createToken = async (user_id, token_hash, expires_at) => {
   const result = await pool.query(
-    `INSERT INTO "password_reset_tokens"
+    `INSERT INTO "Password_reset_tokens"
       (user_id, token_hash, expires_at)
      VALUES ($1, $2, $3)
      RETURNING *`,
@@ -90,7 +90,7 @@ const createToken = async (user_id, token_hash, expires_at) => {
 const findValidResetTokens = async () => {
   const result = await pool.query(
     `SELECT *
-     FROM "password_reset_tokens"
+     FROM "Password_reset_tokens"
      WHERE used_at IS NULL
        AND expires_at > NOW()
      ORDER BY id DESC`
@@ -102,7 +102,7 @@ const findValidResetTokens = async () => {
 // Marquer un token comme utilisé
 // const markTokenAsUsed = async (id) => {
 //   const result = await pool.query(
-//     `UPDATE "password_reset_tokens"
+//     `UPDATE "Password_reset_tokens"
 //      SET used_at = NOW()
 //      WHERE id = $1
 //      RETURNING *`,
@@ -116,7 +116,7 @@ const findValidResetTokens = async () => {
 
 // const clearToken = async (id) => {
 //   const result = await pool.query(
-//     `DELETE FROM "password_reset_tokens" WHERE id =$1 `, [id]
+//     `DELETE FROM "Password_reset_tokens" WHERE id =$1 `, [id]
 //   )
 //   return result.rows[0]
 // }
@@ -143,7 +143,7 @@ const changePasswordAndClearToken = async (
 
         // 2. Supprimer le token utilisé
         const result = await client.query(
-            `DELETE FROM "password_reset_tokens"
+            `DELETE FROM "Password_reset_tokens"
              WHERE id = $1 AND user_id = $2`,
             [tokenId, userId]
         );
@@ -167,7 +167,40 @@ const changePasswordAndClearToken = async (
     }
 };
 
-const refreshToken = async()
+// creer un token
+const createRefreshToken = async (user_id, token_hash, expires_at) => {
+  const result = await pool.query(
+    `INSERT INTO "Refresh_tokens"(user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING *`, [user_id, token_hash, expires_at]
+  )
+    return result.rows[0]
+}
+
+// rechercher un refresh Token
+const findRefreshTokens = async () => {
+  const result = await pool.query(
+    `SELECT *
+     FROM "Refresh_tokens"
+     WHERE token_hash = $1
+         AND expires_at > NOW()
+        AND revoked_at IS NULL`,
+    [token_hash]
+  )
+
+  return result.rows[0] || null
+}
+
+const findValidRefreshTokens = async () => {
+  const result = await pool.query(
+    `SELECT id, user_id, token_hash, expires_at
+     FROM "Refresh_tokens"
+     WHERE expires_at > NOW()
+       AND revoked_at IS NULL`,
+  );
+
+  return result.rows;
+};
+
+
 
 // Modifier le profil
 const updateUser = async (
@@ -200,5 +233,8 @@ module.exports = {
   // clearToken,
   createUser,
   updateUser,
-  changePasswordAndClearToken
+  changePasswordAndClearToken, 
+ createRefreshToken,
+ findRefreshTokens,
+ findValidRefreshTokens
 }
