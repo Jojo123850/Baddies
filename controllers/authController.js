@@ -5,7 +5,8 @@ const userModel = require('../models/userModel')
 const mailSender = require('../utils/mailSender')
 
 const JWT_SECRET = process.env.JWT_SECRET
-const JWT_EXPIRES_IN = '364d'
+// pour la sécurité
+const JWT_EXPIRES_IN = '1d'
 
 const generateToken = (id) => {
   return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
@@ -181,20 +182,32 @@ const resetPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10)
 
-   
-    await userModel.changePassword(
-      hashedPassword,
-      matchingToken.user_id
-    )
-
-    // Empêcher de réutiliser le token
-    await userModel.markTokenAsUsed(
-      matchingToken.id
-    )
+    await userModel.changePasswordAndClearToken(
+    hashedPassword,
+    matchingToken.user_id,
+    matchingToken.id
+    );
 
     return res.status(200).json({
-      message: 'Mot de passe modifié avec succès'
-    })
+        message: 'Mot de passe modifié avec succès'
+    });
+   
+    
+    // await userModel.changePassword(
+    //   hashedPassword,
+    //   matchingToken.user_id
+    // )
+
+    // await userModel.clearToken(
+    //   matchingToken.id
+    // )
+  
+
+    // // Empêcher de réutiliser le token
+    // await userModel.markTokenAsUsed(
+    //   matchingToken.id
+    // )
+
 
   } catch (error) {
     console.log('Erreur resetPassword :', error)
@@ -216,7 +229,7 @@ const updateProfile = async (req, res) => {
     }
 
     if (email) {
-      const existingUser = await findByEmailExcludingId(email, user.id)
+      const existingUser = await userModel.findByEmailExcludingId(email, user.id)
       if (existingUser) {
         return res.status(400).json({ message: 'Email déjà utilisé' })
       }

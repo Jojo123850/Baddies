@@ -61,17 +61,17 @@ const changeUser = async (pseudo, email, password, avatarUrl, id) => {
 }
 
 // Changer le mot de passe d'un utilisateur
-const changePassword = async (password, id) => {
-  const result = await pool.query(
-    `UPDATE "Users"
-     SET password = $1
-     WHERE id = $2
-     RETURNING id, email, pseudo, avatar_url`,
-    [password, id]
-  )
+// const changePassword = async (password, id) => {
+//   const result = await pool.query(
+//     `UPDATE "Users"
+//      SET password = $1
+//      WHERE id = $2
+//      RETURNING id, email, pseudo, avatar_url`,
+//     [password, id]
+//   )
 
-  return result.rows[0]
-}
+//   return result.rows[0]
+// }
 
 // Créer un token de réinitialisation
 const createToken = async (user_id, token_hash, expires_at) => {
@@ -100,17 +100,74 @@ const findValidResetTokens = async () => {
 }
 
 // Marquer un token comme utilisé
-const markTokenAsUsed = async (id) => {
-  const result = await pool.query(
-    `UPDATE "password_reset_tokens"
-     SET used_at = NOW()
-     WHERE id = $1
-     RETURNING *`,
-    [id]
-  )
+// const markTokenAsUsed = async (id) => {
+//   const result = await pool.query(
+//     `UPDATE "password_reset_tokens"
+//      SET used_at = NOW()
+//      WHERE id = $1
+//      RETURNING *`,
+//     [id]
+//   )
 
-  return result.rows[0]
-}
+//   return result.rows[0]
+// }
+
+
+
+// const clearToken = async (id) => {
+//   const result = await pool.query(
+//     `DELETE FROM "password_reset_tokens" WHERE id =$1 `, [id]
+//   )
+//   return result.rows[0]
+// }
+
+
+const changePasswordAndClearToken = async (
+    password,
+    userId,
+    tokenId
+) => {
+    const client = await pool.connect();
+
+    try {
+        // Démarrer la transaction
+        await client.query('BEGIN');
+
+        // 1. Modifier le mot de passe
+        await client.query(
+            `UPDATE "Users"
+             SET password = $1
+             WHERE id = $2`,
+            [password, userId]
+        );
+
+        // 2. Supprimer le token utilisé
+        const result = await client.query(
+            `DELETE FROM "password_reset_tokens"
+             WHERE id = $1 AND user_id = $2`,
+            [tokenId, userId]
+        );
+
+        // Vérifier qu'un token a bien été supprimé
+        if (result.rowCount !== 1) {
+            throw new Error('Token introuvable');
+        }
+
+        // Valider les deux opérations
+        await client.query('COMMIT');
+
+    } catch (error) {
+        // Annuler les opérations SQL en cas d'erreur
+        await client.query('ROLLBACK');
+        throw error;
+
+    } finally {
+        // Libérer la connexion
+        client.release();
+    }
+};
+
+const refreshToken = async()
 
 // Modifier le profil
 const updateUser = async (
@@ -136,10 +193,12 @@ module.exports = {
   findByEmail,
   findByEmailExcludingId,
   changeUser,
-  changePassword,
+  // changePassword,
   createToken,
   findValidResetTokens,
-  markTokenAsUsed,
+  // markTokenAsUsed,
+  // clearToken,
   createUser,
-  updateUser
+  updateUser,
+  changePasswordAndClearToken
 }
