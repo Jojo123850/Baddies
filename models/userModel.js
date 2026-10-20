@@ -13,7 +13,7 @@ const findByEmailOrPseudo = async (email, pseudo) => {
 // Trouver un utilisateur avec son email
 const findByEmail = async (email) => {
   const result = await pool.query(
-    'SELECT "id", "email", "password", "pseudo" FROM "Users" WHERE email = $1',
+    'SELECT "id", "email", "password", "pseudo", "avatar_url" FROM "Users" WHERE email = $1',
     [email]
   )
 
@@ -220,7 +220,18 @@ const updateUser = async (
 
   return result.rows[0]
 }
+const findProfileConflict = async (id, email, pseudo) => {
+  const result = await pool.query(
+    `SELECT id
+     FROM "Users"
+     WHERE id <> $1
+       AND (email = $2 OR pseudo = $3)
+     LIMIT 1`,
+    [id, email, pseudo]
+  )
 
+  return result.rows[0] || null
+}
 module.exports = {
   findByEmailOrPseudo,
   findByEmail,
@@ -236,5 +247,6 @@ module.exports = {
   changePasswordAndClearToken, 
  createRefreshToken,
  findRefreshTokens,
- findValidRefreshTokens
+ findValidRefreshTokens,
+ findProfileConflict 
 }

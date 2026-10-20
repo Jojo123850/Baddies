@@ -118,7 +118,8 @@ const login = async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        pseudo: user.pseudo
+        pseudo: user.pseudo,
+        avatar_url: user.avatar_url
       }
     });
 
@@ -312,50 +313,118 @@ const refreshTokens = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const user = req.user
-    const { email, password, pseudo, avatar_url } = req.body
+    const body = req.body
 
-    if (email && !validator.isEmail(email)) {
-      return res.status(400).json({ message: 'Vous devez utilisé un email valide' })
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({ message: 'Données invalides.' })
     }
 
-    if (email) {
-      const existingUser = await userModel.findByEmailExcludingId(email, user.id)
-      if (existingUser) {
-        return res.status(400).json({ message: 'Email déjà utilisé' })
-      }
+    const { email, password, pseudo, avatar_url } = body
+
+    if (
+      (email !== undefined && typeof email !== 'string') ||
+      (pseudo !== undefined && typeof pseudo !== 'string') ||
+      (avatar_url !== undefined && typeof avatar_url !== 'string') ||
+      (password !== undefined && typeof password !== 'string')
+    ) {
+      return res.status(400).json({ message: 'Format des champs invalide.' })
+    }
+
+    if (
+      email === undefined &&
+      pseudo === undefined &&
+      avatar_url === undefined &&
+      password === undefined
+    ) {
+      return res.status(400).json({ message: 'Aucune modification fournie.' })
+    }
+
+    const cleanEmail = email === undefined ? null : email.trim()
+    const cleanPseudo = pseudo === undefined ? null : pseudo.trim()
+
+    if (cleanEmail !== null && !validator.isEmail(cleanEmail)) {
+      return res.status(400).json({ message: 'Vous devez utiliser un email valide.' })
+    }
+
+    if (cleanPseudo !== null && !cleanPseudo) {
+      return res.status(400).json({ message: 'Le pseudo ne peut pas être vide.' })
+    }
+
+    if (
+      avatar_url !== undefined &&
+      (
+        !avatar_url ||
+        avatar_url.length > 2048 ||
+        /[\s\\]/.test(avatar_url) ||
+        !/^\/(?!\/)/.test(avatar_url)
+      )
+    ) {
+      return res.status(400).json({
+        message: 'L’avatar doit être un chemin local valide.'
+      })
+    }
+
+    const existingUser = await userModel.findProfileConflict(
+      req.user.id,
+      cleanEmail,
+      cleanPseudo
+    )
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: 'Email ou pseudo déjà utilisé.'
+      })
     }
 
     let hashedPassword = null
 
-    if (password) {
+    if (password !== undefined) {
       const isPasswordOk = validator.isStrongPassword(password, {
-        minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
+        minLength: 6,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 1
       })
 
-    if (!isPasswordOk) {
+      if (!isPasswordOk) {
         return res.status(400).json({
-          message: 'Password must have 1 lower, 1 upper, 1 number and 1 symbol and be at least 6 characters'
+          message: 'Le mot de passe doit contenir au moins 6 caractères, une minuscule, une majuscule, un chiffre et un symbole.'
         })
       }
+
       hashedPassword = await bcrypt.hash(password, 10)
     }
 
-    const updatedUser = await userModel.updateUser(user.id, {
-      email: email || null,
+    const updatedUser = await userModel.updateUser(req.user.id, {
+      email: cleanEmail,
       hashedPassword,
-      pseudo: pseudo || null,
-      avatarUrl: avatar_url || null
+      pseudo: cleanPseudo,
+      avatarUrl: avatar_url === undefined ? null : avatar_url
     })
+
+    if (!updatedUser) {
+      return res.status(401).json({
+        message: "L’utilisateur n’existe plus."
+      })
+    }
 
     return res.status(200).json({
       message: 'Profil modifié avec succès',
       user: updatedUser
     })
-
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ error: 'Erreur serveur.' })
+    if (error.code === '23505') {
+      return res.status(409).json({
+        message: 'Email ou pseudo déjà utilisé.'
+      })
+    }
+
+    console.error('Erreur updateProfile :', error)
+
+    return res.status(500).json({
+      message: 'Impossible de modifier le profil.'
+    })
   }
 }
 
