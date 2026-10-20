@@ -16,10 +16,12 @@ const createHistory = async (userId, evaluation, solutions) => {
 }
 
 
-const getHistory = async(userId) => {
-    result = await pool.query(
-        `SELECT * FROM "History" WHERE user_id=$1 ORDER BY created_at DESC`, [userId]
+const getHistory = async (userId) => {
+    const result = await pool.query(
+        `SELECT * FROM "History" WHERE user_id=$1 ORDER BY created_at DESC`,
+        [userId]
     )
+
     return result.rows
 }
 
@@ -34,4 +36,15 @@ const getHistoryById = async (id, userId) => {
     return result.rows[0] || null
 }
 
-module.exports = { createHistory, getHistory, getHistoryById }
+const deleteHistory = async (id, userId) => {
+    const result = await pool.query(
+        `DELETE FROM "History"
+         WHERE id = $1 AND user_id = $2
+         RETURNING id`,
+        [id, userId]
+    )
+
+    return result.rowCount > 0
+}
+
+module.exports = { createHistory, getHistory, getHistoryById, deleteHistory }

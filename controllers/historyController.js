@@ -70,5 +70,28 @@ const getHistoryById = async (req, res) => {
     }
 }
 
+// Supprimer un épisode appartenant au compte connecté
+const deleteHistory = async (req, res) => {
+    try {
+        const userId = req.user.id
+        const { id } = req.params
 
-module.exports = {createHistory, getHistory, getHistoryById}
+        const deleted = await historyModel.deleteHistory(id, userId)
+
+        if (!deleted) {
+            return res.status(404).json({
+                error: 'Épisode introuvable.'
+            })
+        }
+
+        return res.status(204).send()
+    } catch (error) {
+        console.error('Erreur suppression épisode :', error)
+
+        return res.status(500).json({
+            error: 'Impossible de supprimer cet épisode.'
+        })
+    }
+}
+
+module.exports = {createHistory, getHistory, getHistoryById, deleteHistory}
