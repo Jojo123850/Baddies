@@ -1,249 +1,384 @@
+
 const { test, describe, before, after } = require('node:test')
-const assert = require('node:assert')
+const assert = require('node:assert/strict')
 require('dotenv').config()
 
-const { pool } = require('../config/db') 
+const { pool } = require('../config/db')
 
-const { register, login, updateProfile } = require('../controllers/authController')
+const {
+  register,
+  login,
+  updateProfile
+} = require('../controllers/authController')
 
+const validate = require('../middlewares/validateMiddleware')
+const {
+  registerSchema,
+  loginSchema
+} = require('../schemas/authSchemas')
+
+// Simuler une réponse Express
 const createMockRes = () => {
-    const res = {
-        statusCode: 200,
-        body: null,
-        status(code) {
-            this.statusCode = code
-            return this
-        },
-        json(data) {
-            this.body = data
-            return this
-        }
+  return {
+    statusCode: 200,
+    body: null,
+
+    status(code) {
+      this.statusCode = code
+      return this
+    },
+
+    json(data) {
+      this.body = data
+      return this
     }
-    return res
+  }
 }
-// describe: regroupe les tests liés, test défini le test individuel,
-//  before: setup avant chaque test
-//  after: nettoyage après chaque test
-// lancer test: package: script => test=> node --test
-describe('Auth Test Unit', () => {
 
-    let userA, userC
-    const testEmails = ['test1_@example.com', 'test2_u@example.com','test3_@example.com' ]
-    
+// Exécuter le middleware Zod avant le contrôleur
+const executeWithValidation = async (schema, controller, req, res) => {
+  let valid = false
 
-    before(async () => {
-        await pool.query(
-            'DELETE FROM "Users" WHERE "email" = ANY($1)', [testEmails]
-        )
-    })
+  validate(schema)(req, res, () => {
+    valid = true
+  })
 
-    after(async () => {
-        await pool.query(
-            'DELETE FROM "Users" WHERE "email" = ANY($1)', [testEmails]
-        )
-        await pool.end()
-    })
+  if (valid) {
+    await controller(req, res)
+  }
+}
 
-    test('Register: Register user with email, pseudo, strong password', async () => {
-        const reqA = {
-            body: {
-                email: 'test1_@example.com',
-                password: 'Password123!',
-                pseudo: 'Giovanie'
-            }
-        }
-        const resA = createMockRes()
-        await register(reqA, resA)
-        assert.strictEqual(resA.statusCode, 201)
-        assert.ok(resA.body.token)
-        userA = resA.body.user
-    })
+// Identifiant unique pour éviter les conflits entre exécutions
+const testId = `${Date.now()}_${process.pid}`
 
-    test(':Register verify  with user B', async() => {
-        // Register user B
-            const reqB = {
-                body: {
-                    email: 'test2_u@example.com',
-                    password: 'Password123!',
-                    pseudo: 'Jojo'
-                }
-            }
-            const resB = createMockRes()
-            await register(reqB, resB)
-            assert.strictEqual(resB.statusCode, 201)
-            userB = resB.body.user
-    }) 
+const testEmailA = `baddies_a_${testId}@example.com`
+const testEmailB = `baddies_b_${testId}@example.com`
+const testEmailC = `baddies_c_${testId}@example.com`
+const testEmailUpdated = `baddies_updated_${testId}@example.com`
 
-     test('Register:Duplicate email', async() => {
-         // Duplicate email check
-         const reqA= {
-                body: {
-                    email: 'test2_u@example.com',
-                    password: 'Password123!',
-                    pseudo: 'Jojo'
-                }
-        }
-         const resDup = createMockRes()
-         await register(reqA, resDup)
-         assert.strictEqual(resDup.statusCode, 400)
-     })
+const pseudoA = `TestA_${testId}`
+const pseudoB = `TestB_${testId}`
+const pseudoC = `TestC_${testId}`
 
+const testEmails = [
+  testEmailA,
+  testEmailB,
+  testEmailC,
+  testEmailUpdated
+]
 
-     test( 'Register :weak password', async() => {
-         // weak password
-         const reqC = {
-             body: {
-                 email: 'test3_@example.com',
-                 password: 'Passwordtest3',
-                 pseudo: 'Gyneco'
-             }
-         }
-         const resC = createMockRes()
-         await register(reqC, resC)
-         assert.strictEqual(resC.statusCode, 400)
-         userC = resC.body.user
-     })
-  
+describe('Auth Controller Tests', () => {
+  let userA
+  let userB
 
-    test('Login: get secure token', async () => {
-        const req = {
-            body: {
-                email: 'test1_@example.com',
-                password: 'Password123!'
-            }
-        }
-        const res = createMockRes()
-        await login(req, res)
-        assert.strictEqual(res.statusCode, 200)
-        assert.ok(res.body.token)
-        tokenA = res.body.token
-    })
+  before(async () => {
+    // Aucun DELETE préalable nécessaire :
+    // les emails et pseudos sont uniques à chaque exécution.
+  })
 
-    test('Login: Wrong mail', async() => {
-        // wrong mail
-        const reqWrgMail = {
-            body:{
-                email: 'test0_@example.com',
-                password:'Password123!'
-            }
-        }
-        const resWrgMail = createMockRes()
-        await login(reqWrgMail, resWrgMail)
-        assert.strictEqual(resWrgMail.statusCode, 401)
-       
-    })
-     test('Login: Wrong passWord', async() => {
-        // wrong mail
-        const reqWrgPassword = {
-            body:{
-                email: 'test1_@example.com',
-                password:'Password423!'
-            }
-        }
-        const resWrgPassword = createMockRes()
-        await login(reqWrgPassword, resWrgPassword)
-        assert.strictEqual(resWrgPassword.statusCode, 401)
-    })
+  after(async () => {
+    try {
+      // Supprimer les refresh tokens des comptes de test.
+      await pool.query(
+        `DELETE FROM "Refresh_tokens"
+         WHERE user_id IN (
+           SELECT id FROM "Users"
+           WHERE email = ANY($1)
+         )`,
+        [testEmails]
+      )
 
+      // Supprimer les éventuels tokens de réinitialisation.
+      await pool.query(
+        `DELETE FROM "Password_reset_tokens"
+         WHERE user_id IN (
+           SELECT id FROM "Users"
+           WHERE email = ANY($1)
+         )`,
+        [testEmails]
+      )
 
-    test('Login:No mail', async() => {
-        // no mail
-        const reqNoemail = {
-            body:{
-                email: '',
-                password: 'Password123!'
-            }
-        }
-            const resNoemail = createMockRes()
-            await login(reqNoemail,  resNoemail)
-            assert.strictEqual(resNoemail.statusCode, 400)
-    })
-
-    test('Login: No password', async() => {
-        // no password
-        const reqNoPassword = {
-            body: {
-                email: 'test1_@example.com',
-                password: ''
-            }
-        }
-            const resNoPassword = createMockRes()
-            await login(reqNoPassword, resNoPassword)
-            assert.strictEqual(resNoPassword.statusCode, 400)
-    })
-        
-    
-
-   test('UpdateProfile: update profile', async () => {
-    const req = {
-        user: { id: userA.id },
-        body: {
-            email: 'test1_@example.com',
-            password: 'UpdateTest123!'
-        }
+      // Supprimer uniquement les utilisateurs créés par ces tests.
+      await pool.query(
+        'DELETE FROM "Users" WHERE email = ANY($1)',
+        [testEmails]
+      )
+    } finally {
+      // Ne pas fermer le pool ici :
+      // d'autres fichiers de tests peuvent l'utiliser.
     }
+  })
+
+  // 1. INSCRIPTION A
+  test('Register: créer utilisateur A', async () => {
+    const req = {
+      body: {
+        email: testEmailA,
+        password: 'Password123!',
+        pseudo: pseudoA
+      }
+    }
+
     const res = createMockRes()
+
+    await executeWithValidation(registerSchema, register, req, res)
+
+    assert.equal(res.statusCode, 201)
+    assert.equal(res.body.status, 201)
+    assert.ok(res.body.token)
+    assert.ok(res.body.user)
+    assert.equal(res.body.user.email, testEmailA)
+
+    // Sécurité : ne jamais renvoyer le mot de passe.
+    assert.equal(res.body.user.password, undefined)
+
+    userA = res.body.user
+  })
+
+  // 2. INSCRIPTION B
+  test('Register: créer utilisateur B', async () => {
+    const req = {
+      body: {
+        email: testEmailB,
+        password: 'Password123!',
+        pseudo: pseudoB
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(registerSchema, register, req, res)
+
+    assert.equal(res.statusCode, 201)
+    assert.equal(res.body.status, 201)
+    assert.equal(res.body.user.email, testEmailB)
+
+    userB = res.body.user
+  })
+
+  // 3. EMAIL EN DOUBLE
+  test('Register: email déjà utilisé', async () => {
+    const req = {
+      body: {
+        email: testEmailB,
+        password: 'Password123!',
+        pseudo: pseudoC
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(registerSchema, register, req, res)
+
+    assert.equal(res.statusCode, 409)
+    assert.equal(res.body.status, 409)
+    assert.ok(res.body.title)
+    assert.ok(res.body.detail)
+  })
+
+  // 4. MOT DE PASSE FAIBLE
+  test('Register: mot de passe faible', async () => {
+    const req = {
+      body: {
+        email: testEmailC,
+        password: 'Passwordtest3',
+        pseudo: pseudoC
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(registerSchema, register, req, res)
+
+    // Zod rejette les données avant le contrôleur.
+    assert.equal(res.statusCode, 422)
+    assert.equal(res.body.status, 422)
+    assert.ok(res.body.invalidParams)
+  })
+
+  // 5. CONNEXION RÉUSSIE
+  test('Login: obtenir les tokens', async () => {
+    const req = {
+      body: {
+        email: testEmailA,
+        password: 'Password123!'
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(loginSchema, login, req, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.status, 200)
+    assert.ok(res.body.accessToken)
+    assert.ok(res.body.refreshToken)
+    assert.equal(res.body.user.id, userA.id)
+    assert.equal(res.body.user.password, undefined)
+  })
+
+  // 6. EMAIL INCONNU
+  test('Login: email inconnu', async () => {
+    const req = {
+      body: {
+        email: `unknown_${testId}@example.com`,
+        password: 'Password123!'
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(loginSchema, login, req, res)
+
+    assert.equal(res.statusCode, 401)
+    assert.equal(res.body.status, 401)
+    assert.ok(res.body.detail)
+  })
+
+  // 7. MAUVAIS MOT DE PASSE
+  test('Login: mauvais mot de passe', async () => {
+    const req = {
+      body: {
+        email: testEmailA,
+        password: 'Password423!'
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(loginSchema, login, req, res)
+
+    assert.equal(res.statusCode, 401)
+    assert.equal(res.body.status, 401)
+  })
+
+  // 8. EMAIL MANQUANT
+  test('Login: email manquant', async () => {
+    const req = {
+      body: {
+        email: '',
+        password: 'Password123!'
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(loginSchema, login, req, res)
+
+    assert.equal(res.statusCode, 422)
+    assert.equal(res.body.status, 422)
+    assert.ok(res.body.invalidParams)
+  })
+
+  // 9. MOT DE PASSE MANQUANT
+  test('Login: mot de passe manquant', async () => {
+    const req = {
+      body: {
+        email: testEmailA,
+        password: ''
+      }
+    }
+
+    const res = createMockRes()
+
+    await executeWithValidation(loginSchema, login, req, res)
+
+    assert.equal(res.statusCode, 422)
+    assert.equal(res.body.status, 422)
+    assert.ok(res.body.invalidParams)
+  })
+
+  // 10. MODIFICATION DU PROFIL
+  test('UpdateProfile: modifier le mot de passe', async () => {
+    const req = {
+      user: { id: userA.id },
+      body: {
+        password: 'UpdateTest123!'
+      }
+    }
+
+    const res = createMockRes()
+
     await updateProfile(req, res)
-    assert.strictEqual(res.statusCode, 200)
-    assert.strictEqual(res.body.user.email, 'test1_@example.com')
-    })
 
-    test('UpdateProfile: wrong mail', async() => {
-        const reqUptMail = {
-            user: { id: userA.id },
-            body: {
-                email: 'test0_@example.com',
-                password: 'UpdateTest123!'
-            }
-        }
-                const resUptMail = createMockRes()
-                await updateProfile(reqUptMail, resUptMail)
-                assert.strictEqual(resUptMail.statusCode, 200)
-                assert.strictEqual(resUptMail.body.user.email, 'test0_@example.com')
-             
-                
-    })
-    test('UpdateProfile: wrong password', async() => {
-        const reqUptMail = {
-            user:{id: userA.id},
-            body: {
-                email: 'test1_@example.com',
-                password: 'UpdateTest423!'
-            }
-        }
-                const resUptMail = createMockRes()
-                await updateProfile(reqUptMail, resUptMail)
-                assert.strictEqual(resUptMail.statusCode,200)
-                
-    })
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.status, 200)
+    assert.equal(res.body.user.email, testEmailA)
+    assert.equal(res.body.user.password, undefined)
+  })
 
-     test('UpdateProfile: duplicate mail', async () => {
-         const reqA= {
-            user: {id: userA.id},
-            body: {
-                     email: 'test2_u@example.com',
-                     password: 'Password123!'
-                 }
-             }
-          const resDup = createMockRes()
-          await register(reqA, resDup)
-          assert.strictEqual(resDup.statusCode, 400)
+  // 11. EMAIL INVALIDE
+  test('UpdateProfile: email invalide', async () => {
+    const req = {
+      user: { id: userA.id },
+      body: {
+        email: 'email-invalide'
+      }
+    }
 
-     })
+    const res = createMockRes()
 
-      test( 'UpdateProfile :weak password', async() => {
-         // weak password
-         const reqWeakPass = {
-            user: {id: userA.id},
-             body: {
-                 email: 'test1_@example.com',
-                 password: 'password123!',
-             }
-         }
-         const resWeakPass = createMockRes()
-         await register(reqWeakPass, resWeakPass)
-         assert.strictEqual(resWeakPass.statusCode, 400)
-         userC = resWeakPass.body.user
-      })
-    
+    await updateProfile(req, res)
+
+    assert.equal(res.statusCode, 400)
+    assert.equal(res.body.status, 400)
+    assert.ok(res.body.detail)
+  })
+
+  // 12. MODIFICATION EMAIL VALIDE
+  test('UpdateProfile: modifier email', async () => {
+    const req = {
+      user: { id: userA.id },
+      body: {
+        email: testEmailUpdated
+      }
+    }
+
+    const res = createMockRes()
+
+    await updateProfile(req, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.status, 200)
+    assert.equal(res.body.user.email, testEmailUpdated)
+  })
+
+  // 13. EMAIL DÉJÀ UTILISÉ
+  test('UpdateProfile: email en double', async () => {
+    const req = {
+      user: { id: userA.id },
+      body: {
+        email: testEmailB
+      }
+    }
+
+    const res = createMockRes()
+
+    await updateProfile(req, res)
+
+    assert.equal(res.statusCode, 409)
+    assert.equal(res.body.status, 409)
+    assert.ok(res.body.detail)
+
+    // Vérifier que l'utilisateur B existe bien.
+    assert.ok(userB.id)
+  })
+
+  // 14. MOT DE PASSE FAIBLE
+  test('UpdateProfile: mot de passe faible', async () => {
+    const req = {
+      user: { id: userA.id },
+      body: {
+        password: 'password123!'
+      }
+    }
+
+    const res = createMockRes()
+
+    await updateProfile(req, res)
+
+    assert.equal(res.statusCode, 400)
+    assert.equal(res.body.status, 400)
+    assert.ok(res.body.detail)
+  })
 })

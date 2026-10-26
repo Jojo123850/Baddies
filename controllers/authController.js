@@ -1,18 +1,17 @@
+
 const jwt = require('jsonwebtoken')
 const validator = require('validator')
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
 const userModel = require('../models/userModel')
 const mailSender = require('../utils/mailSender')
 
 const JWT_SECRET = process.env.JWT_SECRET
-// pour la sécurité
 const JWT_EXPIRES_IN = '15m'
 
 const generateToken = (id) => {
   return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
 }
-
-const crypto = require('crypto')
 
 const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex')
@@ -21,27 +20,21 @@ const generateResetToken = () => {
 const generateRefreshToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
+
+// INSCRIPTION
 const register = async (req, res) => {
-  const { email, password, pseudo } = req.body
-// on les enlève parce qu'on a crée un schéma
-  // if ( !pseudo ||!email || !password ) {
-  //   return res.status(400).json({ error: 'Champs obligatoires manquants.' })
-  // }
-
-  // const isPasswordOk = validator.isStrongPassword(password, {
-  //   minLength: 6, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
-  // })
-  // if (!isPasswordOk) {
-  //   return res.status(400).json({ error: 'Mot de passe trop faible.' })
-  // }
-
   try {
+    // Les champs sont validés par le middleware Zod.
+    const { email, password, pseudo } = req.body
+
     const existingUser = await userModel.findByEmailOrPseudo(email, pseudo)
+
     if (existingUser) {
-      return res.status(400).json({
-        title: "Vous ne pouvez pas  utilisé ce mail ou ce pseudo",
-        status: 400,
-        detail: 'Email ou pseudo déjà utilisé.' })
+      return res.status(409).json({
+        title: 'Compte déjà existant',
+        status: 409,
+        detail: 'Cet email ou ce pseudo est déjà utilisé.'
+      })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -49,70 +42,78 @@ const register = async (req, res) => {
     const token = generateToken(user.id)
 
     return res.status(201).json({
-      message: 'Compte créé avec succès !',
+      title: 'Inscription réussie',
+      status: 201,
+      detail: 'Votre compte a été créé avec succès.',
       token,
-      user
+      user: {
+        id: user.id,
+        email: user.email,
+        pseudo: user.pseudo,
+        avatar_url: user.avatar_url
+      }
     })
   } catch (error) {
     console.error("Erreur d'inscription :", error)
-    return res.status(500).json({ error: 'Erreur serveur.' })
+
+    if (error.code === '23505') {
+      return res.status(409).json({
+        title: 'Compte déjà existant',
+        status: 409,
+        detail: 'Cet email ou ce pseudo est déjà utilisé.'
+      })
+    }
+
+    return res.status(500).json({
+      title: 'Erreur serveur',
+      status: 500,
+      detail: "Impossible de créer votre compte pour le moment."
+    })
   }
 }
 
-
+// CONNEXION
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // Le middleware Zod vérifie les champs obligatoires.
+    const { email, password } = req.body
+    const user = await userModel.findByEmail(email)
 
-    // 1. Rechercher l'utilisateur
-    const user = await userModel.findByEmail(email);
-    if(!password){
-        return res.status(401).json({
-        message: ' mot de passe incorrect'
-      });
-
-    }
-
-
+    // Même réponse pour un email inconnu et un mauvais mot de passe.
     if (!user) {
       return res.status(401).json({
-        message: 'Email  incorrect'
-      });
+        title: 'Authentification échouée',
+        status: 401,
+        detail: 'Email ou mot de passe incorrect.'
+      })
     }
 
-    // 2. Vérifier le mot de passe
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, user.password)
 
     if (!isMatch) {
       return res.status(401).json({
-        message: 'Email ou mot de passe incorrect'
-      });
+        title: 'Authentification échouée',
+        status: 401,
+        detail: 'Email ou mot de passe incorrect.'
+      })
     }
 
-    // 3. Générer le refresh token
-    const refreshToken = generateRefreshToken();
+    const refreshToken = generateRefreshToken()
+    const tokenHash = await bcrypt.hash(refreshToken, 10)
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-    // 4. Hacher le refresh token pour la base de données
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
-
-    // 5. Définir une expiration de 7 jours
-    const expiresAt = new Date(
-      Date.now() + 7 * 24 * 60 * 60 * 1000
-    );
-
-    // 6. Enregistrer le hash dans PostgreSQL
     await userModel.createRefreshToken(
       user.id,
       tokenHash,
       expiresAt
-    );
+    )
 
-    // 7. Générer l'access token
-    const accessToken = generateToken(user.id);
+    const accessToken = generateToken(user.id)
 
-    // 8. Renvoyer les tokens pour le test
     return res.status(200).json({
-      message: 'Connexion réussie',
+      title: 'Connexion réussie',
+      status: 200,
+      detail: 'Vous êtes connecté avec succès.',
       accessToken,
       refreshToken,
       user: {
@@ -121,61 +122,75 @@ const login = async (req, res) => {
         pseudo: user.pseudo,
         avatar_url: user.avatar_url
       }
-    });
-
+    })
   } catch (error) {
-    console.error('Erreur login :', error);
+    console.error('Erreur login :', error)
 
     return res.status(500).json({
-      message: 'Erreur serveur'
-    });
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de vous connecter pour le moment.'
+    })
   }
-};
+}
 
-
-
-// forgot password
+// MOT DE PASSE OUBLIÉ
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body
 
     if (!email) {
-      return res.status(400).json({ message: "L'email est obligatoire" })
+      return res.status(400).json({
+        title: 'Email manquant',
+        status: 400,
+        detail: "L'adresse email est obligatoire."
+      })
     }
 
     const user = await userModel.findByEmail(email)
 
+    // Ne pas révéler si une adresse email possède un compte.
     if (!user) {
-      return res.status(400).json({ message: "Email inexistant" })
+      return res.status(200).json({
+        title: 'Demande prise en compte',
+        status: 200,
+        detail: 'Si un compte correspond à cette adresse, un email de réinitialisation sera envoyé.'
+      })
     }
 
-    // génération nouvel token grace à l'email
     const token = generateResetToken()
-
     const tokenHash = await bcrypt.hash(token, 10)
-
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
-    await userModel.createToken(user.id, tokenHash,expiresAt)
+    await userModel.createToken(user.id, tokenHash, expiresAt)
+    await mailSender(email, user.pseudo, token)
 
-    await mailSender(email, user.pseudo,token )
-    
-
-    res.status(200).json({ message: "Email envoyé avec succès" })
-
+    return res.status(200).json({
+      title: 'Demande prise en compte',
+      status: 200,
+      detail: 'Si un compte correspond à cette adresse, un email de réinitialisation sera envoyé.'
+    })
   } catch (error) {
-    console.log(error)
-    return res.status(500).json({ error: 'Erreur serveur' })
+    console.error('Erreur forgotPassword :', error)
+
+    return res.status(500).json({
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de traiter la demande de réinitialisation.'
+    })
   }
 }
 
+// RÉINITIALISATION DU MOT DE PASSE
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body
 
     if (!token || !newPassword) {
       return res.status(400).json({
-        message: 'Token et nouveau mot de passe obligatoires'
+        title: 'Informations manquantes',
+        status: 400,
+        detail: 'Le token et le nouveau mot de passe sont obligatoires.'
       })
     }
 
@@ -189,16 +204,15 @@ const resetPassword = async (req, res) => {
 
     if (!isPasswordOk) {
       return res.status(400).json({
-        message: 'Mot de passe trop faible'
+        title: 'Mot de passe trop faible',
+        status: 400,
+        detail: 'Le mot de passe doit contenir au moins 6 caractères, une minuscule, une majuscule, un chiffre et un symbole.'
       })
     }
 
-    // Récupérer les tokens encore valides
     const resetTokens = await userModel.findValidResetTokens()
-
-    // Chercher quel token correspond au token reçu
     let matchingToken = null
-    // prendre les tokens un par un  et comparer le token hashé avec le token reçu
+
     for (const resetToken of resetTokens) {
       const isMatch = await bcrypt.compare(
         token,
@@ -213,110 +227,102 @@ const resetPassword = async (req, res) => {
 
     if (!matchingToken) {
       return res.status(401).json({
-        message: 'Token invalide ou expiré'
+        title: 'Token invalide',
+        status: 401,
+        detail: 'Le lien de réinitialisation est invalide ou expiré.'
       })
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10)
 
     await userModel.changePasswordAndClearToken(
-    hashedPassword,
-    matchingToken.user_id,
-    matchingToken.id
-    );
+      hashedPassword,
+      matchingToken.user_id,
+      matchingToken.id
+    )
 
     return res.status(200).json({
-        message: 'Mot de passe modifié avec succès'
-    });
-   
-    
-    // await userModel.changePassword(
-    //   hashedPassword,
-    //   matchingToken.user_id
-    // )
-
-    // await userModel.clearToken(
-    //   matchingToken.id
-    // )
-  
-
-    // // Empêcher de réutiliser le token
-    // await userModel.markTokenAsUsed(
-    //   matchingToken.id
-    // )
-
-
+      title: 'Mot de passe modifié',
+      status: 200,
+      detail: 'Votre mot de passe a été modifié avec succès.'
+    })
   } catch (error) {
-    console.log('Erreur resetPassword :', error)
+    console.error('Erreur resetPassword :', error)
 
     return res.status(500).json({
-      error: 'Erreur serveur'
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de réinitialiser votre mot de passe.'
     })
   }
 }
 
+// RENOUVELLEMENT DU TOKEN
 const refreshTokens = async (req, res) => {
   try {
-    const { token } = req.body;
+    const { token } = req.body
 
     if (!token) {
       return res.status(400).json({
-        message: 'Refresh token manquant'
-      });
+        title: 'Refresh token manquant',
+        status: 400,
+        detail: 'Un refresh token est nécessaire pour renouveler la session.'
+      })
     }
 
-    // 1. Récupérer les refresh tokens valides en base
-    const tokens = await userModel.findValidRefreshTokens();
-
-    // 2. Chercher celui qui correspond au token reçu
-    let matchingToken = null;
+    const tokens = await userModel.findValidRefreshTokens()
+    let matchingToken = null
 
     for (const savedToken of tokens) {
       const isMatch = await bcrypt.compare(
         token,
         savedToken.token_hash
-      );
+      )
 
       if (isMatch) {
-        matchingToken = savedToken;
-        break;
+        matchingToken = savedToken
+        break
       }
     }
 
-    // 3. Refuser si aucun token ne correspond
     if (!matchingToken) {
       return res.status(401).json({
-        message: 'Refresh token invalide ou expiré'
-      });
+        title: 'Session invalide',
+        status: 401,
+        detail: 'Le refresh token est invalide ou expiré.'
+      })
     }
 
-    // 4. Générer un nouvel access token
-    const accessToken = jwt.sign(
-      { id: matchingToken.user_id },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    const accessToken = generateToken(matchingToken.user_id)
 
-    // 5. Renvoyer le nouvel access token
     return res.status(200).json({
+      title: 'Session renouvelée',
+      status: 200,
+      detail: 'Un nouveau token d’accès a été généré.',
       accessToken
-    });
-
+    })
   } catch (error) {
-    console.error('Erreur refreshTokens :', error);
+    console.error('Erreur refreshTokens :', error)
 
     return res.status(500).json({
-      message: 'Erreur serveur'
-    });
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de renouveler votre session.'
+    })
   }
-};
+}
 
+// MODIFICATION DU PROFIL
 const updateProfile = async (req, res) => {
   try {
     const body = req.body
 
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return res.status(400).json({ message: 'Données invalides.' })
+      return res.status(400).json({
+        title: 'Données invalides',
+        status: 400,
+        detail: 'Les données du profil doivent être un objet valide.'
+      })
     }
 
     const { email, password, pseudo, avatar_url } = body
@@ -327,7 +333,11 @@ const updateProfile = async (req, res) => {
       (avatar_url !== undefined && typeof avatar_url !== 'string') ||
       (password !== undefined && typeof password !== 'string')
     ) {
-      return res.status(400).json({ message: 'Format des champs invalide.' })
+      return res.status(400).json({
+        title: 'Format invalide',
+        status: 400,
+        detail: 'Un ou plusieurs champs ont un format invalide.'
+      })
     }
 
     if (
@@ -336,18 +346,30 @@ const updateProfile = async (req, res) => {
       avatar_url === undefined &&
       password === undefined
     ) {
-      return res.status(400).json({ message: 'Aucune modification fournie.' })
+      return res.status(400).json({
+        title: 'Aucune modification',
+        status: 400,
+        detail: 'Vous devez fournir au moins un champ à modifier.'
+      })
     }
 
     const cleanEmail = email === undefined ? null : email.trim()
     const cleanPseudo = pseudo === undefined ? null : pseudo.trim()
 
     if (cleanEmail !== null && !validator.isEmail(cleanEmail)) {
-      return res.status(400).json({ message: 'Vous devez utiliser un email valide.' })
+      return res.status(400).json({
+        title: 'Email invalide',
+        status: 400,
+        detail: 'Vous devez utiliser une adresse email valide.'
+      })
     }
 
     if (cleanPseudo !== null && !cleanPseudo) {
-      return res.status(400).json({ message: 'Le pseudo ne peut pas être vide.' })
+      return res.status(400).json({
+        title: 'Pseudo invalide',
+        status: 400,
+        detail: 'Le pseudo ne peut pas être vide.'
+      })
     }
 
     if (
@@ -360,7 +382,9 @@ const updateProfile = async (req, res) => {
       )
     ) {
       return res.status(400).json({
-        message: 'L’avatar doit être un chemin local valide.'
+        title: 'Avatar invalide',
+        status: 400,
+        detail: 'L’avatar doit être un chemin local valide.'
       })
     }
 
@@ -372,7 +396,9 @@ const updateProfile = async (req, res) => {
 
     if (existingUser) {
       return res.status(409).json({
-        message: 'Email ou pseudo déjà utilisé.'
+        title: 'Profil déjà existant',
+        status: 409,
+        detail: 'Cet email ou ce pseudo est déjà utilisé.'
       })
     }
 
@@ -389,7 +415,9 @@ const updateProfile = async (req, res) => {
 
       if (!isPasswordOk) {
         return res.status(400).json({
-          message: 'Le mot de passe doit contenir au moins 6 caractères, une minuscule, une majuscule, un chiffre et un symbole.'
+          title: 'Mot de passe trop faible',
+          status: 400,
+          detail: 'Le mot de passe doit contenir au moins 6 caractères, une minuscule, une majuscule, un chiffre et un symbole.'
         })
       }
 
@@ -405,27 +433,47 @@ const updateProfile = async (req, res) => {
 
     if (!updatedUser) {
       return res.status(401).json({
-        message: "L’utilisateur n’existe plus."
+        title: 'Compte indisponible',
+        status: 401,
+        detail: "L'utilisateur n'existe plus."
       })
     }
 
     return res.status(200).json({
-      message: 'Profil modifié avec succès',
-      user: updatedUser
+      title: 'Profil modifié',
+      status: 200,
+      detail: 'Votre profil a été modifié avec succès.',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        pseudo: updatedUser.pseudo,
+        avatar_url: updatedUser.avatar_url
+      }
     })
   } catch (error) {
     if (error.code === '23505') {
       return res.status(409).json({
-        message: 'Email ou pseudo déjà utilisé.'
+        title: 'Profil déjà existant',
+        status: 409,
+        detail: 'Cet email ou ce pseudo est déjà utilisé.'
       })
     }
 
     console.error('Erreur updateProfile :', error)
 
     return res.status(500).json({
-      message: 'Impossible de modifier le profil.'
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de modifier votre profil.'
     })
   }
 }
 
-module.exports = { register, login, forgotPassword,resetPassword,refreshTokens, updateProfile }
+module.exports = {
+  register,
+  login,
+  forgotPassword,
+  resetPassword,
+  refreshTokens,
+  updateProfile
+}
