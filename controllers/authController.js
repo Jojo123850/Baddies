@@ -9,10 +9,16 @@ const mailSender = require('../utils/mailSender')
 const JWT_SECRET = process.env.JWT_SECRET
 const JWT_EXPIRES_IN = '15m'
 
+// Générer un access token JWT
 const generateToken = (id) => {
-  return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+  return jwt.sign(
+    { id },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  )
 }
 
+// Générer un token aléatoire de 64 caractères hexadécimaux
 const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
@@ -21,13 +27,22 @@ const generateRefreshToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
+// Vérifier le format des tokens aléatoires
+const isTokenFormatValid = (token) => {
+  return (
+    typeof token === 'string' &&
+    /^[a-f0-9]{64}$/i.test(token)
+  )
+}
+
 // INSCRIPTION
 const register = async (req, res) => {
   try {
-    // Les champs sont validés par le middleware Zod.
+    // Les données sont validées par le middleware Zod
     const { email, password, pseudo } = req.body
 
-    const existingUser = await userModel.findByEmailOrPseudo(email, pseudo)
+    const existingUser =
+      await userModel.findByEmailOrPseudo(email, pseudo)
 
     if (existingUser) {
       return res.status(409).json({
@@ -38,7 +53,14 @@ const register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
-    const user = await userModel.createUser(email, hashedPassword, pseudo, null)
+
+    const user = await userModel.createUser(
+      email,
+      hashedPassword,
+      pseudo,
+      null
+    )
+
     const token = generateToken(user.id)
 
     return res.status(201).json({
@@ -75,11 +97,11 @@ const register = async (req, res) => {
 // CONNEXION
 const login = async (req, res) => {
   try {
-    // Le middleware Zod vérifie les champs obligatoires.
     const { email, password } = req.body
+
     const user = await userModel.findByEmail(email)
 
-    // Même réponse pour un email inconnu et un mauvais mot de passe.
+    // Ne pas révéler si l'email existe
     if (!user) {
       return res.status(401).json({
         title: 'Authentification échouée',
@@ -88,7 +110,10 @@ const login = async (req, res) => {
       })
     }
 
-    const isMatch = await bcrypt.compare(password, user.password)
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    )
 
     if (!isMatch) {
       return res.status(401).json({
@@ -98,9 +123,15 @@ const login = async (req, res) => {
       })
     }
 
+    // Générer un refresh token
     const refreshToken = generateRefreshToken()
+
+    // IMPORTANT : utiliser bcrypt, pas SHA-256
     const tokenHash = await bcrypt.hash(refreshToken, 10)
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    )
 
     await userModel.createRefreshToken(
       user.id,
@@ -137,7 +168,7 @@ const login = async (req, res) => {
 // MOT DE PASSE OUBLIÉ
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body
+    const { email } = req.body || {}
 
     if (!email) {
       return res.status(400).json({
@@ -149,27 +180,36 @@ const forgotPassword = async (req, res) => {
 
     const user = await userModel.findByEmail(email)
 
-    // Ne pas révéler si une adresse email possède un compte.
-    if (!user) {
-      return res.status(200).json({
-        title: 'Demande prise en compte',
-        status: 200,
-        detail: 'Si un compte correspond à cette adresse, un email de réinitialisation sera envoyé.'
-      })
-    }
-
-    const token = generateResetToken()
-    const tokenHash = await bcrypt.hash(token, 10)
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
-
-    await userModel.createToken(user.id, tokenHash, expiresAt)
-    await mailSender(email, user.pseudo, token)
-
-    return res.status(200).json({
+    // Même réponse pour un compte existant ou inconnu
+    const successResponse = {
       title: 'Demande prise en compte',
       status: 200,
       detail: 'Si un compte correspond à cette adresse, un email de réinitialisation sera envoyé.'
-    })
+    }
+
+    if (!user) {
+      return res.status(200).json(successResponse)
+    }
+
+    const token = generateResetToken()
+
+    // Hasher le token de réinitialisation avec bcrypt
+    const tokenHash = await bcrypt.hash(token, 10)
+
+    const expiresAt = new Date(
+      Date.now() + 60 * 60 * 1000
+    )
+
+    await userModel.createToken(
+      user.id,
+      tokenHash,
+      expiresAt
+    )
+
+    // Envoyer uniquement le token brut par email
+    await mailSender(email, user.pseudo, token)
+
+    return res.status(200).json(successResponse)
   } catch (error) {
     console.error('Erreur forgotPassword :', error)
 
@@ -184,7 +224,7 @@ const forgotPassword = async (req, res) => {
 // RÉINITIALISATION DU MOT DE PASSE
 const resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body
+    const { token, newPassword } = req.body || {}
 
     if (!token || !newPassword) {
       return res.status(400).json({
@@ -194,13 +234,23 @@ const resetPassword = async (req, res) => {
       })
     }
 
-    const isPasswordOk = validator.isStrongPassword(newPassword, {
-      minLength: 6,
-      minLowercase: 1,
-      minUppercase: 1,
-      minNumbers: 1,
-      minSymbols: 1
-    })
+    if (!isTokenFormatValid(token)) {
+      return res.status(401).json({
+        title: 'Token invalide',
+        status: 401,
+        detail: 'Le lien de réinitialisation est invalide ou expiré.'
+      })
+    }
+
+    const isPasswordOk =
+      typeof newPassword === 'string' &&
+      validator.isStrongPassword(newPassword, {
+        minLength: 6,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 1
+      })
 
     if (!isPasswordOk) {
       return res.status(400).json({
@@ -210,17 +260,20 @@ const resetPassword = async (req, res) => {
       })
     }
 
-    const resetTokens = await userModel.findValidResetTokens()
+    // Récupérer uniquement les tokens actifs
+    const tokens = await userModel.findValidResetTokens()
+
     let matchingToken = null
 
-    for (const resetToken of resetTokens) {
+    // Comparer les tokens avec bcrypt
+    for (const savedToken of tokens) {
       const isMatch = await bcrypt.compare(
         token,
-        resetToken.token_hash
+        savedToken.token_hash
       )
 
       if (isMatch) {
-        matchingToken = resetToken
+        matchingToken = savedToken
         break
       }
     }
@@ -233,18 +286,32 @@ const resetPassword = async (req, res) => {
       })
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10)
-
-    await userModel.changePasswordAndClearToken(
-      hashedPassword,
-      matchingToken.user_id,
-      matchingToken.id
+    const hashedPassword = await bcrypt.hash(
+      newPassword,
+      10
     )
+
+    // Transaction PostgreSQL :
+    // modifier le mot de passe et invalider les tokens
+    const changed =
+      await userModel.changePasswordAndClearToken(
+        hashedPassword,
+        matchingToken.user_id,
+        matchingToken.id
+      )
+
+    if (!changed) {
+      return res.status(401).json({
+        title: 'Token invalide',
+        status: 401,
+        detail: 'Ce lien de réinitialisation a déjà été utilisé ou a expiré.'
+      })
+    }
 
     return res.status(200).json({
       title: 'Mot de passe modifié',
       status: 200,
-      detail: 'Votre mot de passe a été modifié avec succès.'
+      detail: 'Votre mot de passe a été modifié avec succès. Veuillez vous reconnecter.'
     })
   } catch (error) {
     console.error('Erreur resetPassword :', error)
@@ -257,10 +324,10 @@ const resetPassword = async (req, res) => {
   }
 }
 
-// RENOUVELLEMENT DU TOKEN
+// RENOUVELLEMENT DU REFRESH TOKEN
 const refreshTokens = async (req, res) => {
   try {
-    const { token } = req.body
+    const { token } = req.body || {}
 
     if (!token) {
       return res.status(400).json({
@@ -270,7 +337,17 @@ const refreshTokens = async (req, res) => {
       })
     }
 
+    if (!isTokenFormatValid(token)) {
+      return res.status(401).json({
+        title: 'Session invalide',
+        status: 401,
+        detail: 'Le refresh token est invalide.'
+      })
+    }
+
+    // Chercher les tokens non expirés et non révoqués
     const tokens = await userModel.findValidRefreshTokens()
+
     let matchingToken = null
 
     for (const savedToken of tokens) {
@@ -293,13 +370,44 @@ const refreshTokens = async (req, res) => {
       })
     }
 
-    const accessToken = generateToken(matchingToken.user_id)
+    // Générer un nouveau refresh token
+    const newRefreshToken = generateRefreshToken()
+
+    const newTokenHash = await bcrypt.hash(
+      newRefreshToken,
+      10
+    )
+
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    )
+
+    // Rotation atomique en base de données
+    const rotated = await userModel.rotateRefreshToken(
+      matchingToken.id,
+      matchingToken.user_id,
+      newTokenHash,
+      expiresAt
+    )
+
+    if (!rotated) {
+      return res.status(401).json({
+        title: 'Session invalide',
+        status: 401,
+        detail: 'Ce refresh token a déjà été utilisé ou a expiré.'
+      })
+    }
+
+    const accessToken = generateToken(
+      matchingToken.user_id
+    )
 
     return res.status(200).json({
       title: 'Session renouvelée',
       status: 200,
-      detail: 'Un nouveau token d’accès a été généré.',
-      accessToken
+      detail: 'Votre session a été renouvelée avec succès.',
+      accessToken,
+      refreshToken: newRefreshToken
     })
   } catch (error) {
     console.error('Erreur refreshTokens :', error)
@@ -317,7 +425,11 @@ const updateProfile = async (req, res) => {
   try {
     const body = req.body
 
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body)
+    ) {
       return res.status(400).json({
         title: 'Données invalides',
         status: 400,
@@ -325,7 +437,12 @@ const updateProfile = async (req, res) => {
       })
     }
 
-    const { email, password, pseudo, avatar_url } = body
+    const {
+      email,
+      password,
+      pseudo,
+      avatar_url
+    } = body
 
     if (
       (email !== undefined && typeof email !== 'string') ||
@@ -353,10 +470,16 @@ const updateProfile = async (req, res) => {
       })
     }
 
-    const cleanEmail = email === undefined ? null : email.trim()
-    const cleanPseudo = pseudo === undefined ? null : pseudo.trim()
+    const cleanEmail =
+      email === undefined ? null : email.trim()
 
-    if (cleanEmail !== null && !validator.isEmail(cleanEmail)) {
+    const cleanPseudo =
+      pseudo === undefined ? null : pseudo.trim()
+
+    if (
+      cleanEmail !== null &&
+      !validator.isEmail(cleanEmail)
+    ) {
       return res.status(400).json({
         title: 'Email invalide',
         status: 400,
@@ -388,11 +511,12 @@ const updateProfile = async (req, res) => {
       })
     }
 
-    const existingUser = await userModel.findProfileConflict(
-      req.user.id,
-      cleanEmail,
-      cleanPseudo
-    )
+    const existingUser =
+      await userModel.findProfileConflict(
+        req.user.id,
+        cleanEmail,
+        cleanPseudo
+      )
 
     if (existingUser) {
       return res.status(409).json({
@@ -405,13 +529,16 @@ const updateProfile = async (req, res) => {
     let hashedPassword = null
 
     if (password !== undefined) {
-      const isPasswordOk = validator.isStrongPassword(password, {
-        minLength: 6,
-        minLowercase: 1,
-        minUppercase: 1,
-        minNumbers: 1,
-        minSymbols: 1
-      })
+      const isPasswordOk = validator.isStrongPassword(
+        password,
+        {
+          minLength: 6,
+          minLowercase: 1,
+          minUppercase: 1,
+          minNumbers: 1,
+          minSymbols: 1
+        }
+      )
 
       if (!isPasswordOk) {
         return res.status(400).json({
@@ -424,12 +551,16 @@ const updateProfile = async (req, res) => {
       hashedPassword = await bcrypt.hash(password, 10)
     }
 
-    const updatedUser = await userModel.updateUser(req.user.id, {
-      email: cleanEmail,
-      hashedPassword,
-      pseudo: cleanPseudo,
-      avatarUrl: avatar_url === undefined ? null : avatar_url
-    })
+    const updatedUser = await userModel.updateUser(
+      req.user.id,
+      {
+        email: cleanEmail,
+        hashedPassword,
+        pseudo: cleanPseudo,
+        avatarUrl:
+          avatar_url === undefined ? null : avatar_url
+      }
+    )
 
     if (!updatedUser) {
       return res.status(401).json({
@@ -469,11 +600,60 @@ const updateProfile = async (req, res) => {
   }
 }
 
+// DÉCONNEXION
+const logout = async (req, res) => {
+  try {
+    const { token } = req.body || {}
+
+    if (!isTokenFormatValid(token)) {
+      return res.status(400).json({
+        title: 'Token invalide',
+        status: 400,
+        detail: 'Un refresh token valide est obligatoire.'
+      })
+    }
+
+    const tokens = await userModel.findValidRefreshTokens()
+
+    // Identifier le token avec bcrypt
+    for (const savedToken of tokens) {
+      const isMatch = await bcrypt.compare(
+        token,
+        savedToken.token_hash
+      )
+
+      if (isMatch) {
+        // Révoquer uniquement le token correspondant
+        await userModel.revokeRefreshTokenById(
+          savedToken.id
+        )
+
+        break
+      }
+    }
+
+    return res.status(200).json({
+      title: 'Déconnexion réussie',
+      status: 200,
+      detail: 'Votre session a été déconnectée.'
+    })
+  } catch (error) {
+    console.error('Erreur logout :', error)
+
+    return res.status(500).json({
+      title: 'Erreur serveur',
+      status: 500,
+      detail: 'Impossible de terminer la session.'
+    })
+  }
+}
+
 module.exports = {
   register,
   login,
   forgotPassword,
   resetPassword,
   refreshTokens,
-  updateProfile
+  updateProfile,
+  logout
 }
