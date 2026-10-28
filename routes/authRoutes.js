@@ -11,7 +11,7 @@ router.post('/login',validate(loginSchema), login)
 router.post('/forgotPassword', forgotPassword)
 
 router.post('/resetPassword', resetPassword)
-router.post('/Refresh', refreshTokens)
+router.post('/refresh', refreshTokens)
 router.post('/logout', logout)
 module.exports = router
 
