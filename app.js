@@ -33,7 +33,7 @@ app.use(
 )
 
 const corsOptions = {
-    origin: [  'https://baddies-beryl.vercel.app', 'http://localhost:5173']
+    origin: [  'https://baddies-beryl.vercel.app', 'https://baddies-api.onrender.com']
 }
 app.use(cors(corsOptions))
 
