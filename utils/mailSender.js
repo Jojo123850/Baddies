@@ -8,7 +8,7 @@ async function  mailSender  (email, pseudo, token)  {
     if (process.env.NODE_ENV === 'baddies') return;
 
     try {
-        const resetLink = `http://localhost:5173/ResetPassword?token=${token}`
+        const resetLink = `https://baddies-beryl.vercel.app/ResetPassword?token=${token}`
  await client.transactionalEmails.sendTransacEmail({
     sender: {
         name: "Baddies",
