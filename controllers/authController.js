@@ -166,11 +166,15 @@ const login = async (req, res) => {
 }
 
 // MOT DE PASSE OUBLIÉ
+const resetTiming = require('../utils/resetTiming')
 const forgotPassword = async (req, res) => {
+  const timing = resetTiming()
+  let outcome = 'error'
   try {
     const { email } = req.body || {}
 
     if (!email) {
+      outcome = 'invalid_request'
       return res.status(400).json({
         title: 'Email manquant',
         status: 400,
@@ -178,7 +182,7 @@ const forgotPassword = async (req, res) => {
       })
     }
 
-    const user = await userModel.findByEmail(email)
+    const user = await timing.measure('database_lookup', () => userModel.findByEmail(email))
 
     // Même réponse pour un compte existant ou inconnu
     const successResponse = {
@@ -188,36 +192,40 @@ const forgotPassword = async (req, res) => {
     }
 
     if (!user) {
+      outcome = 'ok'
       return res.status(200).json(successResponse)
     }
 
     const token = generateResetToken()
 
     // Hasher le token de réinitialisation avec bcrypt
-    const tokenHash = await bcrypt.hash(token, 10)
+    const tokenHash = await timing.measure('token_hash', () => bcrypt.hash(token, 10))
 
     const expiresAt = new Date(
       Date.now() + 60 * 60 * 1000
     )
 
-    await userModel.createToken(
+    await timing.measure('database_token', () => userModel.createToken(
       user.id,
       tokenHash,
       expiresAt
-    )
+    ))
 
     // Envoyer uniquement le token brut par email
-    await mailSender(email, user.pseudo, token)
+    await timing.measure('brevo_send', () => mailSender(email, user.pseudo, token))
 
+    outcome = 'ok'
     return res.status(200).json(successResponse)
   } catch (error) {
-    console.error('Erreur forgotPassword :', error)
+    // La mesure indique l'étape en échec sans exposer les données de la requête.
 
     return res.status(500).json({
       title: 'Erreur serveur',
       status: 500,
       detail: 'Impossible de traiter la demande de réinitialisation.'
     })
+  } finally {
+    timing.finish(outcome)
   }
 }
 

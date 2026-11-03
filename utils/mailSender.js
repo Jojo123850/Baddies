@@ -31,8 +31,7 @@ async function  mailSender  (email, pseudo, token)  {
 });
         
     } catch (error) {
-        console.error('message:', error.message);
-        console.error('status:', error.statusCode);
+        console.error('Brevo: échec de l’envoi de réinitialisation');
         throw new Error('Failed : email did not sent')
     }
    
