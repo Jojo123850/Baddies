@@ -150,3 +150,7 @@ node --test test/authSchemas.test.js test/validateMiddleware.test.js
 ## Licence
 
 `package.json` déclare la licence ISC. Le dépôt ne contient pas actuellement de fichier LICENSE détaillé. Le fichier `licences-frontend.csv`, malgré son nom, est aussi présent dans ce dépôt ; vérifier son contenu et les licences des dépendances avant toute réutilisation.
+
+
+# Auteur
+Giovanie ANDRIANIRINA
