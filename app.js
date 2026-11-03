@@ -5,7 +5,8 @@ const cors = require('cors')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 
-const app = express()          
+const app = express()
+app.set('trust proxy', 1)          
 const port = process.env.PORT || 3001
 
 const authRoutes = require('./routes/authRoutes')
@@ -15,9 +16,12 @@ const historyRoutes = require('./routes/historyRoutes')
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+app.get('/health', (req, res) => res.status(200).send('OK'))
+
 app.get('/', (req, res) => {
     res.send('Bienvenue sur mon API RESTful !')
 })
+
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
