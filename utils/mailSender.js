@@ -1,9 +1,18 @@
+/** @module utils/mailSender */
 const { BrevoClient } = require('@getbrevo/brevo');
 
 const client = new BrevoClient({
     apiKey: process.env.BREVO_API_KEY
 });
 
+/**
+ * Demande à Brevo d'envoyer le lien ; aucun envoi si NODE_ENV vaut baddies.
+ * @param {string} email Adresse du destinataire.
+ * @param {string} pseudo Nom affiché dans le message.
+ * @param {string} token Jeton brut de réinitialisation, à ne jamais journaliser.
+ * @returns {Promise<void>} Résolue après acceptation par le fournisseur, pas après livraison.
+ * @throws {Error} Si le fournisseur refuse l'envoi ou n'est pas joignable.
+ */
 async function  mailSender  (email, pseudo, token)  {
     if (process.env.NODE_ENV === 'baddies') return;
 

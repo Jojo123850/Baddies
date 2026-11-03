@@ -1,9 +1,16 @@
+/** @module config/db */
 const { Pool } = require('pg') 
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 })
 
+/**
+ * Vérifie la connexion et libère le client ; journalise les erreurs sans les propager.
+ * @memberof module:config/db
+ * @static
+ * @returns {Promise<void>} Vérification terminée ; les erreurs sont journalisées.
+ */
 const connectDB = async () => {
   try {
     const client = await pool.connect()

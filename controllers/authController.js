@@ -1,3 +1,4 @@
+/** @module controllers/authController */
 
 const jwt = require('jsonwebtoken')
 const validator = require('validator')
@@ -10,6 +11,13 @@ const JWT_SECRET = process.env.JWT_SECRET
 const JWT_EXPIRES_IN = '15m'
 
 // Générer un access token JWT
+/**
+ * Signe un access token JWT valable 15 minutes.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {string|number} id id.
+ * @returns {string} Jeton signé ou valeur aléatoire encodée en hexadécimal.
+ */
 const generateToken = (id) => {
   return jwt.sign(
     { id },
@@ -19,15 +27,34 @@ const generateToken = (id) => {
 }
 
 // Générer un token aléatoire de 64 caractères hexadécimaux
+/**
+ * Génère un jeton aléatoire hexadécimal de 32 octets.
+ * @memberof module:controllers/authController
+ * @static
+ * @returns {string} Jeton signé ou valeur aléatoire encodée en hexadécimal.
+ */
 const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
+/**
+ * Génère un refresh token aléatoire hexadécimal de 32 octets.
+ * @memberof module:controllers/authController
+ * @static
+ * @returns {string} Jeton signé ou valeur aléatoire encodée en hexadécimal.
+ */
 const generateRefreshToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
 // Vérifier le format des tokens aléatoires
+/**
+ * Vérifie qu’un jeton contient 64 caractères hexadécimaux.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {string} token token.
+ * @returns {boolean} Vrai uniquement pour un jeton hexadécimal de longueur attendue.
+ */
 const isTokenFormatValid = (token) => {
   return (
     typeof token === 'string' &&
@@ -36,6 +63,14 @@ const isTokenFormatValid = (token) => {
 }
 
 // INSCRIPTION
+/**
+ * Crée un compte après validation Zod ; répond 201, 409 ou 500.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const register = async (req, res) => {
   try {
     // Les données sont validées par le middleware Zod
@@ -95,6 +130,14 @@ const register = async (req, res) => {
 }
 
 // CONNEXION
+/**
+ * Vérifie les identifiants et crée une paire de jetons de session.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const login = async (req, res) => {
   try {
     const { email, password } = req.body
@@ -167,6 +210,14 @@ const login = async (req, res) => {
 
 // MOT DE PASSE OUBLIÉ
 const resetTiming = require('../utils/resetTiming')
+/**
+ * Prépare un jeton et demande son envoi via Brevo, sans divulguer l’existence du compte dans la réponse de succès.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const forgotPassword = async (req, res) => {
   const timing = resetTiming()
   let outcome = 'error'
@@ -230,6 +281,14 @@ const forgotPassword = async (req, res) => {
 }
 
 // RÉINITIALISATION DU MOT DE PASSE
+/**
+ * Consomme un jeton de réinitialisation et remplace le mot de passe.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body || {}
@@ -333,6 +392,14 @@ const resetPassword = async (req, res) => {
 }
 
 // RENOUVELLEMENT DU REFRESH TOKEN
+/**
+ * Vérifie un refresh token et réalise sa rotation.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const refreshTokens = async (req, res) => {
   try {
     const { token } = req.body || {}
@@ -429,6 +496,14 @@ const refreshTokens = async (req, res) => {
 }
 
 // MODIFICATION DU PROFIL
+/**
+ * Valide et modifie les champs du profil authentifié.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const updateProfile = async (req, res) => {
   try {
     const body = req.body
@@ -609,6 +684,14 @@ const updateProfile = async (req, res) => {
 }
 
 // DÉCONNEXION
+/**
+ * Révoque le refresh token fourni ; opération idempotente pour un jeton inconnu.
+ * @memberof module:controllers/authController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const logout = async (req, res) => {
   try {
     const { token } = req.body || {}

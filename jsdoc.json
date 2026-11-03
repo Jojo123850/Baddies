@@ -1,0 +1,17 @@
+{
+  "source": {
+    "include": [
+      "controllers",
+      "models",
+      "middlewares",
+      "config",
+      "utils"
+    ],
+    "includePattern": ".+\\.js$"
+  },
+  "opts": {
+    "destination": "docs/generated",
+    "recurse": true,
+    "encoding": "utf8"
+  }
+}

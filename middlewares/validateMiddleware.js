@@ -1,6 +1,12 @@
+/** @module middlewares/validateMiddleware */
 
 
 // middleware générique de validation zod
+/**
+ * Valide le corps avec Zod, applique les transformations ou répond HTTP 422.
+ * @param {Object} schema Schéma Zod exposant safeParse.
+ * @returns {Function} Middleware Express (req, res, next).
+ */
 function validateBody(schema) {
     return(req, res, next) => {
             const result = schema.safeParse(req.body);

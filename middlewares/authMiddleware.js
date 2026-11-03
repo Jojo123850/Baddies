@@ -1,7 +1,17 @@
+/** @module middlewares/authMiddleware */
 
 const jwt = require('jsonwebtoken')
 const { pool } = require('../config/db')
 
+/**
+ * Vérifie le JWT et l’existence du compte avant d’appeler next.
+ * @memberof module:middlewares/authMiddleware
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @param {Function} next Middleware suivant.
+ * @returns {Promise<*>} Résultat ou réponse HTTP selon la couche.
+ */
 const authMiddleware = async (req, res, next) => {
   try {
     let token

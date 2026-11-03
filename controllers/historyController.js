@@ -1,3 +1,4 @@
+/** @module controllers/historyController */
 
 const historyModel = require('../models/historyModel')
 
@@ -6,6 +7,14 @@ const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Enregistrer une évaluation terminée
+/**
+ * Enregistre un épisode pour l’utilisateur authentifié.
+ * @memberof module:controllers/historyController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const createHistory = async (req, res) => {
   try {
     const { evaluation, solutions } = req.body || {}
@@ -46,6 +55,14 @@ const createHistory = async (req, res) => {
 }
 
 // Récupérer les épisodes de l'utilisateur connecté
+/**
+ * Liste les épisodes du compte authentifié.
+ * @memberof module:controllers/historyController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const getHistory = async (req, res) => {
   try {
     const userId = req.user.id
@@ -71,6 +88,14 @@ const getHistory = async (req, res) => {
 }
 
 // Récupérer un épisode précis par son UUID
+/**
+ * Recherche un épisode appartenant au compte authentifié.
+ * @memberof module:controllers/historyController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const getHistoryById = async (req, res) => {
   try {
     const userId = req.user.id
@@ -115,6 +140,14 @@ const getHistoryById = async (req, res) => {
 }
 
 // Supprimer un épisode appartenant à l'utilisateur connecté
+/**
+ * Supprime uniquement un épisode appartenant au compte authentifié.
+ * @memberof module:controllers/historyController
+ * @static
+ * @param {Object} req Requête Express.
+ * @param {Object} res Réponse Express.
+ * @returns {Promise<Object>} Réponse HTTP Express.
+ */
 const deleteHistory = async (req, res) => {
   try {
     const userId = req.user.id

@@ -1,3 +1,4 @@
+/** @module models/userModel */
 
 const { pool } = require('../config/db')
 
@@ -6,6 +7,15 @@ const { pool } = require('../config/db')
 // =====================================================
 
 // Rechercher un compte par email ou pseudo
+/**
+ * Recherche un conflit de compte par email ou pseudo.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} email email.
+ * @param {string} pseudo pseudo.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findByEmailOrPseudo = async (email, pseudo) => {
   const result = await pool.query(
     `SELECT id
@@ -18,6 +28,14 @@ const findByEmailOrPseudo = async (email, pseudo) => {
 }
 
 // Rechercher un compte par email
+/**
+ * Recherche un compte par email, avec le hash nécessaire à la connexion.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} email email.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findByEmail = async (email) => {
   const result = await pool.query(
     `SELECT id, email, password, pseudo, avatar_url
@@ -30,6 +48,15 @@ const findByEmail = async (email) => {
 }
 
 // Rechercher un email utilisé par un autre compte
+/**
+ * Recherche un email utilisé par un autre compte.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} email email.
+ * @param {string|number} excludeId excludeId.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findByEmailExcludingId = async (email, excludeId) => {
   const result = await pool.query(
     `SELECT id, email
@@ -42,6 +69,14 @@ const findByEmailExcludingId = async (email, excludeId) => {
 }
 
 // Rechercher un utilisateur par son ID
+/**
+ * Recherche le profil public d’un compte.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} id id.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findById = async (id) => {
   const result = await pool.query(
     `SELECT id, email, pseudo, avatar_url
@@ -54,6 +89,17 @@ const findById = async (id) => {
 }
 
 // Créer un utilisateur
+/**
+ * Crée un compte avec un mot de passe déjà hashé.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} email email.
+ * @param {string} password Hash pour les modèles ; valeur brute uniquement avant hashage dans le contrôleur.
+ * @param {string} pseudo pseudo.
+ * @param {string} avatarUrl avatarUrl.
+ * @returns {Promise<Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const createUser = async (
   email,
   password,
@@ -73,6 +119,18 @@ const createUser = async (
 
 // Ancienne fonction de modification utilisateur
 // Conservée pour compatibilité avec le reste du projet
+/**
+ * Modifie un compte (ancienne fonction conservée pour compatibilité).
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} pseudo pseudo.
+ * @param {string} email email.
+ * @param {string} password Hash pour les modèles ; valeur brute uniquement avant hashage dans le contrôleur.
+ * @param {string} avatarUrl avatarUrl.
+ * @param {string|number} id id.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const changeUser = async (
   pseudo,
   email,
@@ -100,6 +158,16 @@ const changeUser = async (
 
 // Enregistrer un token de réinitialisation hashé
 // Le contrôleur effectue le hashage avec bcrypt
+/**
+ * Enregistre un jeton de réinitialisation déjà hashé.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} userId userId.
+ * @param {string} tokenHash tokenHash.
+ * @param {Date} expiresAt expiresAt.
+ * @returns {Promise<Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const createToken = async (
   userId,
   tokenHash,
@@ -118,6 +186,13 @@ const createToken = async (
 
 // Récupérer uniquement les tokens de reset actifs
 // La comparaison bcrypt est effectuée dans le contrôleur
+/**
+ * Liste les jetons de réinitialisation encore actifs.
+ * @memberof module:models/userModel
+ * @static
+ * @returns {Promise<Array<Object>>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findValidResetTokens = async () => {
   const result = await pool.query(
     `SELECT id, user_id, token_hash, expires_at
@@ -131,6 +206,16 @@ const findValidResetTokens = async () => {
 
 // Modifier le mot de passe et invalider les sessions
 // Toutes les opérations sont atomiques
+/**
+ * Change le mot de passe et révoque les sessions dans une transaction ; retourne false si le jeton est consommé.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string} password Hash pour les modèles ; valeur brute uniquement avant hashage dans le contrôleur.
+ * @param {string|number} userId userId.
+ * @param {string|number} tokenId tokenId.
+ * @returns {Promise<boolean>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const changePasswordAndClearToken = async (
   password,
   userId,
@@ -211,6 +296,16 @@ const changePasswordAndClearToken = async (
 // =====================================================
 
 // Enregistrer un refresh token hashé avec bcrypt
+/**
+ * Enregistre un refresh token hashé.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} userId userId.
+ * @param {string} tokenHash tokenHash.
+ * @param {Date} expiresAt expiresAt.
+ * @returns {Promise<Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const createRefreshToken = async (
   userId,
   tokenHash,
@@ -229,6 +324,13 @@ const createRefreshToken = async (
 
 // Récupérer les refresh tokens encore actifs
 // Le contrôleur identifie le token avec bcrypt.compare()
+/**
+ * Liste les refresh tokens actifs.
+ * @memberof module:models/userModel
+ * @static
+ * @returns {Promise<Array<Object>>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findValidRefreshTokens = async () => {
   const result = await pool.query(
     `SELECT id, user_id, token_hash, expires_at
@@ -241,6 +343,14 @@ const findValidRefreshTokens = async () => {
 }
 
 // Révoquer tous les refresh tokens d'un utilisateur
+/**
+ * Révoque toutes les sessions du compte.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} userId userId.
+ * @returns {Promise<number>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const revokeUserRefreshTokens = async (userId) => {
   const result = await pool.query(
     `UPDATE "Refresh_tokens"
@@ -255,6 +365,14 @@ const revokeUserRefreshTokens = async (userId) => {
 
 // Révoquer un refresh token par son identifiant
 // Utilisé pour la déconnexion
+/**
+ * Révoque une session par son identifiant.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} tokenId tokenId.
+ * @returns {Promise<boolean>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const revokeRefreshTokenById = async (tokenId) => {
   const result = await pool.query(
     `UPDATE "Refresh_tokens"
@@ -271,6 +389,17 @@ const revokeRefreshTokenById = async (tokenId) => {
 // Rotation d'un refresh token
 // L'ancien token est révoqué et un nouveau est créé
 // dans une seule transaction PostgreSQL
+/**
+ * Révoque l’ancien jeton et insère le nouveau atomiquement.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} tokenId tokenId.
+ * @param {string|number} userId userId.
+ * @param {string} newTokenHash newTokenHash.
+ * @param {Date} expiresAt expiresAt.
+ * @returns {Promise<boolean>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const rotateRefreshToken = async (
   tokenId,
   userId,
@@ -338,6 +467,15 @@ const rotateRefreshToken = async (
 
 // Modifier les informations du profil
 // Révoquer les sessions si le mot de passe change
+/**
+ * Modifie les champs fournis et révoque les sessions si le mot de passe change.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} id id.
+ * @param {Object} options Champs partiels : email, hashedPassword, pseudo, avatarUrl.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const updateUser = async (
   id,
   { email, hashedPassword, pseudo, avatarUrl }
@@ -400,6 +538,16 @@ const updateUser = async (
 }
 
 // Vérifier les conflits d'email ou de pseudo
+/**
+ * Recherche un email ou pseudo déjà utilisé par un autre compte.
+ * @memberof module:models/userModel
+ * @static
+ * @param {string|number} id id.
+ * @param {string} email email.
+ * @param {string} pseudo pseudo.
+ * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
+ * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
+ */
 const findProfileConflict = async (
   id,
   email,

@@ -43,6 +43,8 @@ app.use(cors(corsOptions))
 
 app.use(limiter)
 
+require('./docs/swagger')(app)
+
 app.use('/api/v1/auth', authRoutes)
 app.use('/api/v1/user', userRoutes)
 app.use('/api/v1/history', historyRoutes)
