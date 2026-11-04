@@ -10,6 +10,7 @@ const mailSender = require('../utils/mailSender')
 const JWT_SECRET = process.env.JWT_SECRET
 const JWT_EXPIRES_IN = '15m'
 
+
 // Générer un access token JWT
 /**
  * Signe un access token JWT valable 15 minutes.
@@ -26,6 +27,7 @@ const generateToken = (id) => {
   )
 }
 
+
 // Générer un token aléatoire de 64 caractères hexadécimaux
 /**
  * Génère un jeton aléatoire hexadécimal de 32 octets.
@@ -37,6 +39,7 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
 
+
 /**
  * Génère un refresh token aléatoire hexadécimal de 32 octets.
  * @memberof module:controllers/authController
@@ -46,6 +49,7 @@ const generateResetToken = () => {
 const generateRefreshToken = () => {
   return crypto.randomBytes(32).toString('hex')
 }
+
 
 // Vérifier le format des tokens aléatoires
 /**
