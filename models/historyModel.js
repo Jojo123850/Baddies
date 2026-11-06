@@ -104,7 +104,7 @@ const importHistory = async (userId,localId,date,evaluation,solutions) => {
          ON CONFLICT (user_id, local_id)
          DO UPDATE SET local_id = EXCLUDED.local_id
          RETURNING *`,
-        [userI,localId,date,
+        [userId,localId,date,
             JSON.stringify(evaluation),
             JSON.stringify(solutions)
         ]

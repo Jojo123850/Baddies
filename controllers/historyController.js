@@ -240,14 +240,19 @@ const importHistory = async (req, res) => {
             status: 200,
             history
         })
-    } catch {
-        // Ne pas journaliser le contenu de l'évaluation.
-        return res.status(500).json({
-            title: 'Erreur serveur',
-            status: 500,
-            detail: 'Impossible de transférer cet épisode.'
-        })
-    }
+    }  catch (error) {
+    console.error('Erreur import historique :', {
+        code: error.code,
+        constraint: error.constraint,
+        column: error.column
+    })
+
+    return res.status(500).json({
+        title: 'Erreur serveur',
+        status: 500,
+        detail: 'Impossible de transférer cet épisode.'
+    })
+}
 }
 
 module.exports = {
