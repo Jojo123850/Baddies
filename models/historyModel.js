@@ -84,4 +84,33 @@ const deleteHistory = async (id, userId) => {
     return result.rowCount > 0
 }
 
-module.exports = { createHistory, getHistory, getHistoryById, deleteHistory }
+/**
+ * Importe une évaluation locale pour le compte authentifié.
+ * Une nouvelle tentative renvoie l'épisode déjà importé
+ * sans écraser son contenu.
+ *
+ * @param {string|number} userId Identifiant du compte.
+ * @param {string} localId Identifiant stable de l'évaluation locale.
+ * @param {string} date Date de l'évaluation.
+ * @param {Object} evaluation Réponses de l'évaluation.
+ * @param {Array} solutions Solutions associées.
+ * @returns {Promise<Object>} Épisode enregistré.
+ */
+const importHistory = async (userId,localId,date,evaluation,solutions) => {
+    const result = await pool.query(
+        `INSERT INTO "History"
+            (user_id, local_id, created_at, evaluation, solutions)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, local_id)
+         DO UPDATE SET local_id = EXCLUDED.local_id
+         RETURNING *`,
+        [userI,localId,date,
+            JSON.stringify(evaluation),
+            JSON.stringify(solutions)
+        ]
+    )
+
+    return result.rows[0]
+}
+
+module.exports = { createHistory, getHistory, getHistoryById, deleteHistory, importHistory}

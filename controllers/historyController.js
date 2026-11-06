@@ -188,9 +188,73 @@ const deleteHistory = async (req, res) => {
   }
 }
 
+// Importer une évaluation enregistrée sur l'appareil
+const importHistory = async (req, res) => {
+    const { localId, date, evaluation, solutions } = req.body || {}
+
+    const validLocalId =
+        typeof localId === 'string' &&
+        localId.trim().length > 0 &&
+        localId.length <= 128
+
+    // Date ISO avec heure et fuseau horaire
+    const validDate =
+        typeof date === 'string' &&
+        /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(date) &&
+        Number.isFinite(Date.parse(date))
+
+    const validEvaluation =
+        evaluation !== null &&
+        typeof evaluation === 'object' &&
+        !Array.isArray(evaluation) &&
+        Array.isArray(evaluation.localisations) &&
+        evaluation.localisations.every(
+            (zone) => typeof zone === 'string'
+        )
+
+    if (
+        !validLocalId ||
+        !validDate ||
+        !validEvaluation ||
+        !Array.isArray(solutions)
+    ) {
+        return res.status(400).json({
+            title: 'Données invalides',
+            status: 400,
+            detail: "L'évaluation locale est incomplète ou invalide."
+        })
+    }
+
+    try {
+        // Le compte vient du middleware JWT, jamais du formulaire.
+        const history = await historyModel.importHistory(
+            req.user.id,
+            localId,
+            new Date(date).toISOString(),
+            evaluation,
+            solutions
+        )
+
+        return res.status(200).json({
+            title: 'Épisode transféré',
+            status: 200,
+            history
+        })
+    } catch {
+        // Ne pas journaliser le contenu de l'évaluation.
+        return res.status(500).json({
+            title: 'Erreur serveur',
+            status: 500,
+            detail: 'Impossible de transférer cet épisode.'
+        })
+    }
+}
+
 module.exports = {
   createHistory,
   getHistory,
   getHistoryById,
-  deleteHistory
+  deleteHistory,
+  importHistory
+  
 }
