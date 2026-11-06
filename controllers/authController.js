@@ -743,6 +743,64 @@ const logout = async (req, res) => {
   }
 }
 
+const deleteAccount = async (req, res) => {
+    const { password, confirmation } = req.body || {}
+
+    if (
+        typeof password !== 'string' ||
+        !password ||
+        password.length > 1024 ||
+        confirmation !== 'SUPPRIMER'
+    ) {
+        return res.status(400).json({
+            detail: 'Mot de passe et confirmation obligatoires.'
+        })
+    }
+
+    try {
+        const user = await userModel.findAccountForDeletion(
+            req.user.id
+        )
+
+        if (!user) {
+            return res.status(401).json({
+                detail: 'Veuillez vous reconnecter.'
+            })
+        }
+
+        const validPassword = await bcrypt.compare(
+            password,
+            user.password
+        )
+
+        if (!validPassword) {
+            return res.status(403).json({
+                detail: 'Mot de passe incorrect.'
+            })
+        }
+
+        const deleted = await userModel.deleteAccount(
+            req.user.id,
+            user.password
+        )
+
+        if (!deleted) {
+            return res.status(409).json({
+                detail: 'Le compte a changé. Veuillez réessayer.'
+            })
+        }
+
+        return res.status(204).send()
+    } catch {
+        // Ne pas afficher le mot de passe ou les données du compte.
+        console.error('Échec de la suppression du compte.')
+
+        return res.status(500).json({
+            detail: 'Impossible de supprimer le compte pour le moment.'
+        })
+    }
+}
+
 module.exports = {
   register,
   login,
@@ -750,5 +808,6 @@ module.exports = {
   resetPassword,
   refreshTokens,
   updateProfile,
-  logout
+  logout,
+   deleteAccount
 }

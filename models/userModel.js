@@ -565,6 +565,30 @@ const findProfileConflict = async (
   return result.rows[0] || null
 }
 
+
+// Récupérer le hash uniquement pour vérifier une suppression
+const findAccountForDeletion = async (userId) => {
+    const result = await pool.query(
+        `SELECT id, password
+         FROM "Users"
+         WHERE id = $1`,
+        [userId]
+    )
+
+    return result.rows[0] || null
+}
+
+// Vérifier que le mot de passe n'a pas changé entre-temps
+const deleteAccount = async (userId, passwordHash) => {
+    const result = await pool.query(
+        `DELETE FROM "Users"
+         WHERE id = $1 AND password = $2
+         RETURNING id`,
+        [userId, passwordHash]
+    )
+
+    return result.rowCount === 1
+}
 // =====================================================
 // EXPORTS
 // =====================================================
@@ -585,5 +609,7 @@ module.exports = {
   revokeRefreshTokenById,
   rotateRefreshToken,
   updateUser,
-  findProfileConflict
+  findProfileConflict,
+  findAccountForDeletion,
+  deleteAccount
 }
