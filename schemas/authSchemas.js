@@ -7,7 +7,7 @@ const { z } = require('zod');
 const registerSchema = z.object({
     pseudo: z.string()
         .min(3, {error: "Le pseudo doit contenir au moins 3 caractères"})
-        .max(50, {error: "Le pseudo doit pas dépasser 60 caractères"})
+        .max(50, {error: "Le pseudo doit pas dépasser 50 caractères"})
         .trim(),
     email: z.email({error: "Adresse email invalide"})
         .trim()

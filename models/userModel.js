@@ -2,9 +2,7 @@
 
 const { pool } = require('../config/db')
 
-// =====================================================
-// GESTION DES UTILISATEURS
-// =====================================================
+
 
 // Rechercher un compte par email ou pseudo
 /**
@@ -152,9 +150,7 @@ const changeUser = async (
   return result.rows[0] || null
 }
 
-// =====================================================
-// RÉINITIALISATION DU MOT DE PASSE
-// =====================================================
+
 
 // Enregistrer un token de réinitialisation hashé
 // Le contrôleur effectue le hashage avec bcrypt
@@ -168,11 +164,7 @@ const changeUser = async (
  * @returns {Promise<Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
  * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
  */
-const createToken = async (
-  userId,
-  tokenHash,
-  expiresAt
-) => {
+const createToken = async (userId,tokenHash,expiresAt) => {
   const result = await pool.query(
     `INSERT INTO "Password_reset_tokens"
        (user_id, token_hash, expires_at)
@@ -183,6 +175,8 @@ const createToken = async (
 
   return result.rows[0]
 }
+
+
 
 // Récupérer uniquement les tokens de reset actifs
 // La comparaison bcrypt est effectuée dans le contrôleur
@@ -204,6 +198,7 @@ const findValidResetTokens = async () => {
   return result.rows
 }
 
+
 // Modifier le mot de passe et invalider les sessions
 // Toutes les opérations sont atomiques
 /**
@@ -216,11 +211,7 @@ const findValidResetTokens = async () => {
  * @returns {Promise<boolean>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
  * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
  */
-const changePasswordAndClearToken = async (
-  password,
-  userId,
-  tokenId
-) => {
+const changePasswordAndClearToken = async (password,userId,tokenId) => {
   const client = await pool.connect()
 
   try {
@@ -291,9 +282,8 @@ const changePasswordAndClearToken = async (
   }
 }
 
-// =====================================================
-// GESTION DES REFRESH TOKENS
-// =====================================================
+
+
 
 // Enregistrer un refresh token hashé avec bcrypt
 /**
@@ -322,6 +312,8 @@ const createRefreshToken = async (
   return result.rows[0]
 }
 
+
+
 // Récupérer les refresh tokens encore actifs
 // Le contrôleur identifie le token avec bcrypt.compare()
 /**
@@ -341,6 +333,8 @@ const findValidRefreshTokens = async () => {
 
   return result.rows
 }
+
+
 
 // Révoquer tous les refresh tokens d'un utilisateur
 /**
@@ -386,6 +380,9 @@ const revokeRefreshTokenById = async (tokenId) => {
   return result.rowCount === 1
 }
 
+
+
+
 // Rotation d'un refresh token
 // L'ancien token est révoqué et un nouveau est créé
 // dans une seule transaction PostgreSQL
@@ -400,12 +397,7 @@ const revokeRefreshTokenById = async (tokenId) => {
  * @returns {Promise<boolean>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
  * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
  */
-const rotateRefreshToken = async (
-  tokenId,
-  userId,
-  newTokenHash,
-  expiresAt
-) => {
+const rotateRefreshToken = async (tokenId,userId,newTokenHash,expiresAt) => {
   const client = await pool.connect()
 
   try {
@@ -461,9 +453,7 @@ const rotateRefreshToken = async (
   }
 }
 
-// =====================================================
-// MODIFICATION DU PROFIL
-// =====================================================
+
 
 // Modifier les informations du profil
 // Révoquer les sessions si le mot de passe change
@@ -476,10 +466,7 @@ const rotateRefreshToken = async (
  * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
  * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
  */
-const updateUser = async (
-  id,
-  { email, hashedPassword, pseudo, avatarUrl }
-) => {
+const updateUser = async (id,{ email, hashedPassword, pseudo, avatarUrl }) => {
   const client = await pool.connect()
 
   try {
@@ -537,6 +524,8 @@ const updateUser = async (
   }
 }
 
+
+
 // Vérifier les conflits d'email ou de pseudo
 /**
  * Recherche un email ou pseudo déjà utilisé par un autre compte.
@@ -548,11 +537,7 @@ const updateUser = async (
  * @returns {Promise<?Object>} Ligne SQL, liste, résultat de suppression ou null selon la fonction.
  * @throws {Error} Propage les erreurs PostgreSQL après rollback si nécessaire.
  */
-const findProfileConflict = async (
-  id,
-  email,
-  pseudo
-) => {
+const findProfileConflict = async (id,email,pseudo) => {
   const result = await pool.query(
     `SELECT id
      FROM "Users"
@@ -589,9 +574,7 @@ const deleteAccount = async (userId, passwordHash) => {
 
     return result.rowCount === 1
 }
-// =====================================================
-// EXPORTS
-// =====================================================
+
 
 module.exports = {
   findByEmailOrPseudo,

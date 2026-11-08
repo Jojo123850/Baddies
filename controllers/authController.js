@@ -116,20 +116,11 @@ const register = async (req, res) => {
     })
   } catch (error) {
     console.error("Erreur d'inscription :", error)
-
-    if (error.code === '23505') {
-      return res.status(409).json({
-        title: 'Compte déjà existant',
-        status: 409,
-        detail: 'Cet email ou ce pseudo est déjà utilisé.'
-      })
-    }
-
-    return res.status(500).json({
-      title: 'Erreur serveur',
-      status: 500,
-      detail: "Impossible de créer votre compte pour le moment."
-    })
+        return res.status(500).json({
+          title: 'Erreur serveur',
+          status: 500,
+          detail: "Impossible de créer votre compte pour le moment."
+        })
   }
 }
 
@@ -173,9 +164,9 @@ const login = async (req, res) => {
     // Générer un refresh token
     const refreshToken = generateRefreshToken()
 
-    // IMPORTANT : utiliser bcrypt, pas SHA-256
+ 
     const tokenHash = await bcrypt.hash(refreshToken, 10)
-
+    // 7j expirations
     const expiresAt = new Date(
       Date.now() + 7 * 24 * 60 * 60 * 1000
     )
@@ -213,7 +204,6 @@ const login = async (req, res) => {
 }
 
 // MOT DE PASSE OUBLIÉ
-const resetTiming = require('../utils/resetTiming')
 /**
  * Prépare un jeton et demande son envoi via Brevo, sans divulguer l’existence du compte dans la réponse de succès.
  * @memberof module:controllers/authController
@@ -223,13 +213,10 @@ const resetTiming = require('../utils/resetTiming')
  * @returns {Promise<Object>} Réponse HTTP Express.
  */
 const forgotPassword = async (req, res) => {
-  const timing = resetTiming()
-  let outcome = 'error'
   try {
     const { email } = req.body || {}
 
     if (!email) {
-      outcome = 'invalid_request'
       return res.status(400).json({
         title: 'Email manquant',
         status: 400,
@@ -237,7 +224,7 @@ const forgotPassword = async (req, res) => {
       })
     }
 
-    const user = await timing.measure('database_lookup', () => userModel.findByEmail(email))
+  const user = await userModel.findByEmail(email)
 
     // Même réponse pour un compte existant ou inconnu
     const successResponse = {
@@ -247,27 +234,24 @@ const forgotPassword = async (req, res) => {
     }
 
     if (!user) {
-      outcome = 'ok'
       return res.status(200).json(successResponse)
     }
 
     const token = generateResetToken()
 
     // Hasher le token de réinitialisation avec bcrypt
-    const tokenHash = await timing.measure('token_hash', () => bcrypt.hash(token, 10))
+    const tokenHash = await bcrypt.hash(token, 10)
 
     const expiresAt = new Date(
       Date.now() + 60 * 60 * 1000
     )
-
-    await timing.measure('database_token', () => userModel.createToken(
+    await userModel.createToken(
       user.id,
       tokenHash,
       expiresAt
-    ))
-
+    )
     // Envoyer uniquement le token brut par email
-    await timing.measure('brevo_send', () => mailSender(email, user.pseudo, token))
+   await mailSender(email, user.pseudo, token)
 
     outcome = 'ok'
     return res.status(200).json(successResponse)
@@ -279,9 +263,7 @@ const forgotPassword = async (req, res) => {
       status: 500,
       detail: 'Impossible de traiter la demande de réinitialisation.'
     })
-  } finally {
-    timing.finish(outcome)
-  }
+  } 
 }
 
 // RÉINITIALISATION DU MOT DE PASSE

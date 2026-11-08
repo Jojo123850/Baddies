@@ -1,13 +1,9 @@
 const { describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
-const {
-  registerSchema,
-  loginSchema
-} = require('../schemas/authSchemas')
+const {registerSchema,loginSchema} = require('../schemas/authSchemas')
 
 describe('Validation Zod - Inscription', () => {
-
   test('Accepte une inscription valide', () => {
     const result = registerSchema.safeParse({
       pseudo: 'Jojo',

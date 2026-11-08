@@ -2,20 +2,14 @@
 const { test, describe, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 require('dotenv').config()
-
+const userModel = require('../models/userModel')
+const bcrypt = require('bcrypt')
 const { pool } = require('../config/db')
 
-const {
-  register,
-  login,
-  updateProfile
-} = require('../controllers/authController')
+const {register,login,updateProfile, deleteAccount} = require('../controllers/authController')
 
 const validate = require('../middlewares/validateMiddleware')
-const {
-  registerSchema,
-  loginSchema
-} = require('../schemas/authSchemas')
+const {registerSchema,loginSchema} = require('../schemas/authSchemas')
 
 // Simuler une réponse Express
 const createMockRes = () => {
@@ -381,4 +375,203 @@ describe('Auth Controller Tests', () => {
     assert.equal(res.body.status, 400)
     assert.ok(res.body.detail)
   })
+  test('DeleteAccount : refuse une confirmation incorrecte', async t => {
+  let modeleAppele = false
+
+  t.mock.method(userModel, 'findAccountForDeletion', async () => {
+    modeleAppele = true
+  })
+
+  const req = {
+    body: {
+      password: 'Password1!',
+      confirmation: 'NON'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.equal(modeleAppele, false)
+})
+
+test('DeleteAccount : refuse les données absentes', async () => {
+  const req = {
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 400)
+})
+
+test('DeleteAccount : refuse un mot de passe trop long', async () => {
+  const req = {
+    body: {
+      password: 'a'.repeat(1025),
+      confirmation: 'SUPPRIMER'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 400)
+})
+
+test('DeleteAccount : refuse un compte introuvable', async t => {
+  t.mock.method(userModel, 'findAccountForDeletion', async () => {
+    return null
+  })
+
+  const req = {
+    body: {
+      password: 'Password1!',
+      confirmation: 'SUPPRIMER'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 401)
+})
+
+test('DeleteAccount : un mauvais mot de passe ne supprime rien', async t => {
+  t.mock.method(userModel, 'findAccountForDeletion', async () => {
+    return { password: 'empreinte-en-base' }
+  })
+
+  t.mock.method(bcrypt, 'compare', async () => {
+    return false
+  })
+
+  let compteSupprime = false
+
+  t.mock.method(userModel, 'deleteAccount', async () => {
+    compteSupprime = true
+  })
+
+  const req = {
+    body: {
+      password: 'Mauvais1!',
+      confirmation: 'SUPPRIMER'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.equal(compteSupprime, false)
+})
+
+test('DeleteAccount : supprime uniquement le compte authentifié', async t => {
+  t.mock.method(userModel, 'findAccountForDeletion', async id => {
+    assert.equal(id, 7)
+
+    return { password: 'empreinte-en-base' }
+  })
+
+  t.mock.method(bcrypt, 'compare', async (password, empreinte) => {
+    assert.equal(password, 'Password1!')
+    assert.equal(empreinte, 'empreinte-en-base')
+
+    return true
+  })
+
+  let compteSupprime = false
+
+  t.mock.method(userModel, 'deleteAccount', async (id, empreinte) => {
+    assert.equal(id, 7)
+    assert.equal(empreinte, 'empreinte-en-base')
+
+    compteSupprime = true
+    return true
+  })
+
+  const req = {
+    body: {
+      password: 'Password1!',
+      confirmation: 'SUPPRIMER',
+      user_id: 999 // Cette valeur doit être ignorée.
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  // La vraie méthode Express send() ne doit pas envoyer de réseau ici.
+  res.send = () => res
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 204)
+  assert.equal(compteSupprime, true)
+})
+
+test('DeleteAccount : signale un compte modifié entre les vérifications', async t => {
+  t.mock.method(userModel, 'findAccountForDeletion', async () => {
+    return { password: 'empreinte-en-base' }
+  })
+
+  t.mock.method(bcrypt, 'compare', async () => {
+    return true
+  })
+
+  t.mock.method(userModel, 'deleteAccount', async () => {
+    return false
+  })
+
+  const req = {
+    body: {
+      password: 'Password1!',
+      confirmation: 'SUPPRIMER'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 409)
+})
+
+test('DeleteAccount : renvoie 500 en cas de panne', async t => {
+  t.mock.method(console, 'error', () => {})
+
+  t.mock.method(userModel, 'findAccountForDeletion', async () => {
+    throw new Error('Base indisponible')
+  })
+
+  const req = {
+    body: {
+      password: 'Password1!',
+      confirmation: 'SUPPRIMER'
+    },
+    user: { id: 7 }
+  }
+
+  const res = createMockRes()
+
+  await deleteAccount(req, res)
+
+  assert.equal(res.statusCode, 500)
+  assert.equal(
+    res.body.detail,
+    'Impossible de supprimer le compte pour le moment.'
+  )
+})
 })

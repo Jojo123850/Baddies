@@ -13,5 +13,6 @@ router.post('/forgotPassword', forgotPassword)
 router.post('/resetPassword', resetPassword)
 router.post('/refresh', refreshTokens)
 router.post('/logout', logout)
+
 module.exports = router
 

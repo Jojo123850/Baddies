@@ -6,6 +6,7 @@ const historyModel = require('../models/historyModel')
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+
 // Enregistrer une évaluation terminée
 /**
  * Enregistre un épisode pour l’utilisateur authentifié.
@@ -54,6 +55,8 @@ const createHistory = async (req, res) => {
   }
 }
 
+
+
 // Récupérer les épisodes de l'utilisateur connecté
 /**
  * Liste les épisodes du compte authentifié.
@@ -86,6 +89,8 @@ const getHistory = async (req, res) => {
     })
   }
 }
+
+
 
 // Récupérer un épisode précis par son UUID
 /**
@@ -188,20 +193,15 @@ const deleteHistory = async (req, res) => {
   }
 }
 
+
+
 // Importer une évaluation enregistrée sur l'appareil
 const importHistory = async (req, res) => {
     const { localId, date, evaluation, solutions } = req.body || {}
 
-    const validLocalId =
-        typeof localId === 'string' &&
-        localId.trim().length > 0 &&
-        localId.length <= 128
+    const validLocalId = typeof localId === 'string' && localId.trim().length > 0 && localId.length <= 128
 
-    // Date ISO avec heure et fuseau horaire
-    const validDate =
-        typeof date === 'string' &&
-        /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(date) &&
-        Number.isFinite(Date.parse(date))
+    const validDate = typeof date === 'string' &&/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(date) && Number.isFinite(Date.parse(date))
 
     const validEvaluation =
         evaluation !== null &&

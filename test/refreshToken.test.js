@@ -6,11 +6,7 @@ const bcrypt = require('bcrypt')
 require('dotenv').config()
 
 const { pool } = require('../config/db')
-const {
-  register,
-  login,
-  refreshTokens
-} = require('../controllers/authController')
+const {register,login,refreshTokens} = require('../controllers/authController')
 
 const createMockRes = () => ({
   statusCode: 200,

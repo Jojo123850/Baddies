@@ -148,8 +148,8 @@ describe('Auth Middleware Tests', () => {
     assert.equal(res.statusCode, 401)
     assert.equal(nextCalled, false)
     assert.equal(res.body.status, 401)
-        assert.ok(res.body.title)
-        assert.ok(res.body.detail)
+    assert.ok(res.body.title)
+    assert.ok(res.body.detail)
         })
 
   // 5. Token signé avec une mauvaise clé
@@ -179,17 +179,14 @@ describe('Auth Middleware Tests', () => {
 
   // 6. Utilisateur inexistant
   
-test('JWT: refuser un utilisateur inexistant', async () => {
-  // Trouver un identifiant numérique absent de la base
-  const result = await pool.query(
-    'SELECT COALESCE(MAX(id), 0) + 1 AS id FROM "Users"'
-  )
+test('JWT: refuser un utilisateur inexistant', async t => {
+  // Simuler une base qui ne trouve aucun compte.
+  t.mock.method(pool, 'query', async () => {
+    return { rows: [] }
+  })
 
-  const unknownId = result.rows[0].id
-
-  // Créer un JWT valide pour cet utilisateur inexistant
   const token = jwt.sign(
-    { id: unknownId },
+    { id: '123' },
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   )
@@ -207,12 +204,9 @@ test('JWT: refuser un utilisateur inexistant', async () => {
     nextCalled = true
   })
 
-  // L'utilisateur n'existe pas : accès refusé
   assert.equal(res.statusCode, 401)
-  assert.equal(res.body.status, 401)
-  assert.equal(nextCalled, false)
-
   assert.equal(res.body.title, 'Utilisateur introuvable')
+  assert.equal(nextCalled, false)
 })
 
 

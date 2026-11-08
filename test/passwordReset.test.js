@@ -7,12 +7,7 @@ require('dotenv').config()
 
 const { pool } = require('../config/db')
 
-const {
-  register,
-  login,
-  forgotPassword,
-  resetPassword
-} = require('../controllers/authController')
+const {register,login,forgotPassword,resetPassword} = require('../controllers/authController')
 
 const createMockRes = () => ({
   statusCode: 200,
@@ -78,6 +73,7 @@ describe('Password Reset Tests', () => {
     userId = res.body.user.id
   })
 
+
   // 2. Email inconnu
   test('ForgotPassword: email inconnu', async () => {
     const res = createMockRes()
@@ -91,6 +87,7 @@ describe('Password Reset Tests', () => {
     assert.equal(res.statusCode, 200)
     assert.equal(res.body.status, 200)
   })
+  
 
   // 3. Email manquant
   test('ForgotPassword: email manquant', async () => {
