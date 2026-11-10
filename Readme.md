@@ -76,6 +76,7 @@ L’API locale écoute par défaut sur `http://localhost:3001`. Le frontend est 
 | GET | `/api/v1/history` | Historiques du compte ; jeton requis. |
 | GET | `/api/v1/history/:id` | Historique appartenant au compte ; jeton requis. |
 | DELETE | `/api/v1/history/:id` | Suppression d’un historique du compte ; jeton requis. |
+| POST | `/api/v1/import` | Importation de l'historique locale au compte; jeton requis |
 
 Les corps des requêtes sont envoyés en JSON avec `Content-Type: application/json`. Les routes protégées attendent `Authorization: Bearer <accessToken>`. Les formats et validations détaillés sont définis dans `schemas/`, `controllers/` et `middlewares/`.
 
